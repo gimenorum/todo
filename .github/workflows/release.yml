@@ -1,6 +1,7 @@
 name: Release & Deploy
 
 # main の更新（PR マージ）を起点に、package.json の version から未作成のタグを作成し、
+# GitHub Release を自動作成（タイトル=タグ名／本文=自動生成ノート／v0.x.y はプレリリース）した上で、
 # そのまま GitHub Pages へデプロイする（ch.15 §15.2/§15.3）。
 # 注意: GITHUB_TOKEN で push したタグは他 workflow を起動しない仕様のため、
 #       タグ event に頼らず本 workflow 内でデプロイまで完結させる。
@@ -44,6 +45,23 @@ jobs:
             echo "created=true" >> "$GITHUB_OUTPUT"
             echo "Created and pushed tag $version."
           fi
+      - name: Create GitHub Release
+        if: steps.tag.outputs.created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ steps.tag.outputs.version }}"   # 例: v0.2.0
+          # メジャー 0 系（Phase 0–4 / v0.x.y）はプレリリース、v1.0.0（Phase 5）以降は正式リリース。
+          major="${version#v}"; major="${major%%.*}"
+          prerelease=""
+          if [ "$major" = "0" ]; then
+            prerelease="--prerelease"
+          fi
+          # タイトル=タグ名、本文=自動生成ノート（直前タグはサーバ側で自動検出）。
+          gh release create "$version" \
+            --title "$version" \
+            --generate-notes \
+            $prerelease
 
   deploy:
     needs: tag
