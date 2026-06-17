@@ -1,7 +1,7 @@
 # 03. データモデル（型）
 
 > 要件トレース: requirements.md「データモデル」「同期エンジン仕様」「受け入れ基準」
-> 状態: 一部実装済（Phase 0：型定義） ／ 実装フェーズ: 0–1
+> 状態: 実装済（Phase 1） ／ 実装フェーズ: 0–1
 
 `model/types.ts` に置く **型の単一の真実**。core・store・services・ui の全レイヤがここを参照する。
 ここに載せるのは「型の骨子」であり実装ロジックではない（ロジックの擬似コードは [04](./04-sync-engine.md)）。
@@ -96,7 +96,7 @@ export interface FieldConflict {
 
 export interface SyncResult {
   mergedSnapshot: Snapshot;     // 自動マージ後（競合フィールドは left を暫定保持）
-  newHead: Hash | null;         // 生成したマージコミット（無ければ null）
+  newHead: Hash | null;         // 同期後の先端（マージ有無は picked で判定。コミットが無ければ null）
   conflicts: FieldConflict[];   // 未解決の競合（per-todo / per-field）
   picked: { base: Hash | null; left: Hash; right: Hash } | null; // 観測用メタ（base/left/right。マージ時のみ）
 }

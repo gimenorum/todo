@@ -1,7 +1,7 @@
 # 05. ストレージアダプタ
 
 > 要件トレース: requirements.md「ストレージアダプタ」「セキュリティ」「受け入れ基準」
-> 状態: ドラフト ／ 実装フェーズ: 1（IF + InMemory）→ 2（Dropbox）→ 3（Drive）
+> 状態: 一部実装済（Phase 1：IF + InMemory） ／ 実装フェーズ: 1（IF + InMemory）→ 2（Dropbox）→ 3（Drive）
 
 同期エンジン（[04](./04-sync-engine.md)）が要求するのは 4 つの操作だけ。保存先の違いはこの IF の裏に隠す。
 

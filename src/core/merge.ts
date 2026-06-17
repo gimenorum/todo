@@ -7,15 +7,14 @@
 //   - deleted: 両側が異なる（edit vs delete）なら **競合**として扱う（自動解決しない）。
 import type { FieldConflict, Snapshot, Todo, TodoField, Uuid } from '../model/types';
 
-// 3-way マージ対象フィールド（createdAt/order/updatedAt/version は対象外）。
-const TODO_FIELDS: readonly TodoField[] = [
+// 内容フィールド（deleted は存在/削除の特別扱い、メタ・order は対象外）。
+const CONTENT_FIELDS: readonly TodoField[] = [
   'title',
   'done',
   'dueDate',
   'priority',
   'notes',
   'tags',
-  'deleted',
 ];
 
 const SET_FIELDS: ReadonlySet<TodoField> = new Set<TodoField>(['tags']);
@@ -95,21 +94,8 @@ export function mergeTodo(
     order: l.order, // v1 未使用のため left 据え置き
   };
 
-  for (const f of TODO_FIELDS) {
-    if (f === 'deleted') {
-      // edit vs delete: 両側で deleted が食い違うなら競合（自動解決しない）。
-      out.deleted = l.deleted; // 暫定 left
-      if (l.deleted !== r.deleted) {
-        conflicts.push({
-          todoId: id,
-          field: 'deleted',
-          base: b?.deleted,
-          left: l.deleted,
-          right: r.deleted,
-        });
-      }
-      continue;
-    }
+  // 1) 内容フィールド（deleted 以外）を 3-way マージ。
+  for (const f of CONTENT_FIELDS) {
     if (SET_FIELDS.has(f)) {
       out.tags = mergeSet(b?.tags, l.tags, r.tags);
       continue;
@@ -120,7 +106,39 @@ export function mergeTodo(
     if (res.conflict) conflicts.push(res.conflict);
   }
 
+  // 2) deleted を決定（ch.04 §4.5）。
+  //    両側一致 → そのまま（both tombstone / both alive）。
+  //    片側だけ食い違う場合: alive 側が内容編集していれば「edit vs delete」競合（編集版を残す）。
+  //    そうでなければ（delete vs 未編集 / resurrect vs 未編集）変更側を自動採用。
+  const bd = b?.deleted ?? false;
+  if (l.deleted === r.deleted) {
+    out.deleted = l.deleted;
+  } else {
+    const alive = l.deleted ? r : l; // deleted=false の側
+    if (contentChangedVsBase(b, alive)) {
+      out.deleted = false; // 編集版を残す（一覧から消さない）
+      conflicts.push({
+        todoId: id,
+        field: 'deleted',
+        base: bd,
+        left: l.deleted,
+        right: r.deleted,
+      });
+    } else {
+      out.deleted = l.deleted !== bd ? l.deleted : r.deleted; // base から変化した側を自動採用
+    }
+  }
+
   return { todo: out, conflicts };
+}
+
+// alive 側が base から内容（deleted 以外）を変更したか。base 不在は新規＝編集とみなす（安全側）。
+function contentChangedVsBase(base: Todo | undefined, side: Todo): boolean {
+  if (!base) return true;
+  for (const f of CONTENT_FIELDS) {
+    if (!valueEq(base[f], side[f])) return true;
+  }
+  return false;
 }
 
 // スカラフィールドの代入（tags/deleted は呼び出し側で処理済み）。

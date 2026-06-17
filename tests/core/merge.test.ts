@@ -38,14 +38,32 @@ describe('mergeSet 集合 3-way（tags / ch.04 §4.5）', () => {
 describe('mergeTodo の存在規則（ch.04 §4.5）', () => {
   it('edit vs delete は deleted 競合（自動解決しない・編集版を暫定保持）', () => {
     const base = makeTodo({ id: 'x', title: 'orig', deleted: false });
-    const left = makeTodo({ id: 'x', title: 'edited', deleted: false, version: 2 });
-    const right = makeTodo({ id: 'x', title: 'orig', deleted: true, version: 2 });
+    const left = makeTodo({ id: 'x', title: 'edited', deleted: false, version: 2 }); // alive かつ内容編集
+    const right = makeTodo({ id: 'x', title: 'orig', deleted: true, version: 2 }); // 削除（内容保持）
     const res = mergeTodo(base, left, right);
-    expect(res.todo?.title).toBe('edited'); // 片側のみ編集 → 自動採用
-    expect(res.todo?.deleted).toBe(false); // 暫定 left（編集版を残す）
+    expect(res.todo?.title).toBe('edited'); // 片側のみ内容編集 → 自動採用
+    expect(res.todo?.deleted).toBe(false); // 暫定 alive（編集版を残す＝一覧から消さない）
     expect(res.conflicts).toEqual([
       { todoId: 'x', field: 'deleted', base: false, left: false, right: true },
     ]);
+  });
+
+  it('delete vs 未編集 → 削除を自動適用（競合なし）', () => {
+    const base = makeTodo({ id: 'x', title: 'orig' });
+    const left = makeTodo({ id: 'x', title: 'orig', deleted: true, version: 2 }); // 削除（内容保持）
+    const right = makeTodo({ id: 'x', title: 'orig' }); // 未編集
+    const res = mergeTodo(base, left, right);
+    expect(res.conflicts).toEqual([]);
+    expect(res.todo?.deleted).toBe(true);
+  });
+
+  it('resurrect vs 未編集 → 復活を自動適用（競合なし）', () => {
+    const base = makeTodo({ id: 'x', title: 'orig', deleted: true });
+    const left = makeTodo({ id: 'x', title: 'orig', deleted: false, version: 2 }); // 復活（内容保持）
+    const right = makeTodo({ id: 'x', title: 'orig', deleted: true }); // 未編集（削除のまま）
+    const res = mergeTodo(base, left, right);
+    expect(res.conflicts).toEqual([]);
+    expect(res.todo?.deleted).toBe(false);
   });
 
   it('delete vs delete は tombstone（競合なし）', () => {

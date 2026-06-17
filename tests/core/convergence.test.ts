@@ -55,14 +55,15 @@ describe('収束（ch.16 §16.3）', () => {
     const C = makeDevice('C', clock);
     const D = makeDevice('D', clock);
     const rC = await C.sync(adapter); // C がマージして publish
-    expect(rC.newHead).not.toBeNull();
-    const rD = await D.sync(adapter); // D は C のマージを見て単一先端を採用
-    expect(rD.newHead).toBeNull();
+    expect(rC.picked).not.toBeNull();
+    const rD = await D.sync(adapter); // D は C のマージを見て単一先端を採用（新規マージなし）
+    expect(rD.picked).toBeNull();
+    expect(rD.newHead).toBe(rC.newHead); // 同一先端へ収束
 
     // 新規端末から見ても先端は 1 つ（マージ結果に両変更が乗る）。
     const E = makeDevice('E', clock);
     const rE = await E.sync(adapter);
-    expect(rE.newHead).toBeNull();
+    expect(rE.picked).toBeNull();
     expect(rE.mergedSnapshot.todos['x'].title).toBe('A-title');
     expect(rE.mergedSnapshot.todos['x'].notes).toBe('B-notes');
   });

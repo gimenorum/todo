@@ -45,9 +45,10 @@ describe('6 並行シナリオ（ch.16 §16.2）', () => {
     expect(res.picked?.base).toBe(base); // LCA が共通 base を正しく選ぶ
     expect(res.mergedSnapshot.todos['x'].priority).toBe('high');
     expect(res.mergedSnapshot.todos['x'].dueDate).toBe(999);
-    // 2 度目の同期は単一先端へ収束（新規マージなし）。
+    // 2 度目の同期は新規マージなし（picked=null）で同一先端に留まる。
     const again = await B.sync(adapter);
-    expect(again.newHead).toBeNull();
+    expect(again.picked).toBeNull();
+    expect(again.newHead).toBe(res.newHead);
   });
 
   it('#3 同一 TODO の異なるフィールド → 自動マージ・競合 0', async () => {
@@ -121,6 +122,24 @@ describe('6 並行シナリオ（ch.16 §16.2）', () => {
   });
 });
 
+describe('削除の自動適用（ch.04 §4.5）', () => {
+  it('削除 vs 未編集（別項目を編集）→ x は競合なしで削除適用・追加も残る', async () => {
+    const adapter = newAdapter();
+    await establishCommonBase(adapter, [A, B], (t) => {
+      t['x'] = makeTodo({ id: 'x', title: 'orig' });
+    });
+    await A.commit((t) => (t['x'].deleted = true)); // A: x を削除（内容は保持）
+    await B.commit((t) => (t['y'] = makeTodo({ id: 'y', title: 'Y' }))); // B: x は触らず別項目追加
+    await A.sync(adapter);
+    const res = await B.sync(adapter); // fork → マージ
+
+    expect(res.picked).not.toBeNull(); // マージが発生
+    expect(res.conflicts).toEqual([]); // x は競合にならない（編集が無いため削除を自動適用）
+    expect(res.mergedSnapshot.todos['x'].deleted).toBe(true); // 削除が適用
+    expect(res.mergedSnapshot.todos['y']).toBeDefined(); // B の追加も残る
+  });
+});
+
 describe('CAS 非依存（ch.16 §16.3 / 受け入れ基準）', () => {
   it('putIfAbsent を無効化しても fork は正しくマージされる', async () => {
     const adapter = newAdapter({ cas: false });
@@ -150,11 +169,11 @@ describe('一覧の遅延整合でも fork を吸収（ch.05 §5.3）', () => {
     await A.publish(adapter); // A の先端は list からは未だ不可視（遅延）
 
     const r1 = await B.sync(adapter);
-    expect(r1.newHead).toBeNull(); // A の先端が見えない → 単一先端
+    expect(r1.picked).toBeNull(); // A の先端が見えない → 単一先端（マージ無し）
 
     adapter.flush(); // 遅延解消
     const r2 = await B.sync(adapter);
-    expect(r2.newHead).not.toBeNull(); // fork を検出 → マージ
+    expect(r2.picked).not.toBeNull(); // fork を検出 → マージ
     expect(r2.conflicts).toEqual([]);
     expect(r2.mergedSnapshot.todos['x'].title).toBe('new');
     expect(r2.mergedSnapshot.todos['x'].notes).toBe('note');

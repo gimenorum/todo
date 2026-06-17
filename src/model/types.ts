@@ -74,7 +74,7 @@ export interface FieldConflict {
 
 export interface SyncResult {
   mergedSnapshot: Snapshot; // 自動マージ後（競合フィールドは left を暫定保持）
-  newHead: Hash | null; // 生成したマージコミット（無ければ null）
+  newHead: Hash | null; // 同期後の先端（マージ有無は picked で判定。コミットが無ければ null）
   conflicts: FieldConflict[]; // 未解決の競合（per-todo / per-field）
   picked: { base: Hash | null; left: Hash; right: Hash } | null; // 観測用メタ
 }
