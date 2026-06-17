@@ -8,6 +8,12 @@ export type Priority = 'none' | 'low' | 'med' | 'high';
 export type Millis = number; // Unix epoch ミリ秒
 export type DeviceId = string; // 端末ごとに一度だけ生成して永続
 
+// 時刻注入（ch.16 §16.1）。services/tests は core へ時刻を注入し、
+// core/sync は Date.now() を直呼びしない（決定性のため）。
+export interface Clock {
+  now(): Millis;
+}
+
 // ---- 3.2 TODO 項目 ----
 export interface Todo {
   id: Uuid;
