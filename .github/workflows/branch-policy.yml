@@ -4,7 +4,7 @@ name: Branch policy
 # GitHub のブランチ保護/Ruleset には「PR の source ブランチ制限」機能が無いため、
 # このジョブを必須ステータスチェックにして機械強制する（ch.15 / 要件「Git ブランチ戦略」）。
 #   - main    ← develop または hotfix/*
-#   - develop ← feature/* のみ
+#   - develop ← feature/* または hotfix/*（hotfix の back-merge を許可 / 要件 Git Flow）
 #
 # 安全性: PR の中身は checkout せず、ブランチ名（base_ref/head_ref）のみ検査する。secrets も使わない。
 on:
@@ -35,10 +35,10 @@ jobs:
               fi
               ;;
             develop)
-              if [[ "${HEAD}" == feature/* ]]; then
-                echo "OK: develop へは feature/* から許可"
+              if [[ "${HEAD}" == feature/* ]] || [[ "${HEAD}" == hotfix/* ]]; then
+                echo "OK: develop へは feature/* / hotfix/* から許可"
               else
-                echo "::error::develop へは feature/* からのみマージ可（head=${HEAD}）"
+                echo "::error::develop へは feature/* または hotfix/* からのみマージ可（head=${HEAD}）"
                 exit 1
               fi
               ;;
