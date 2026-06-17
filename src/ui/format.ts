@@ -10,6 +10,14 @@ export function formatDate(ms: Millis): string {
   return `${y}-${m}-${day}`;
 }
 
+// 全体ステータスの「最終同期 HH:MM」表示用（ch.09 §9.2）。
+export function formatTime(ms: Millis): string {
+  const d = new Date(ms);
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${min}`;
+}
+
 // <input type="date"> 用（YYYY-MM-DD）。
 export function toDateInputValue(ms: Millis | null): string {
   return ms === null ? '' : formatDate(ms);

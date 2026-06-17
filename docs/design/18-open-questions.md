@@ -20,9 +20,9 @@
 
 | # | 項目 | 影響箇所 | 状態 |
 |---|---|---|---|
-| 3 | Dropbox OAuth クライアント ID（public） | `DropboxAdapter` | 未発行。**Phase 2 までにユーザーが発行＋リダイレクト URI 登録** |
+| 3 | Dropbox OAuth クライアント ID（public） | `DropboxAdapter` | **決定（2026-06-17）: ビルド時 env `VITE_DROPBOX_APP_KEY`** で供給（Phase 2 実装済）。Dropbox アプリ発行＋リダイレクト URI 登録はユーザーが実施 |
 | 4 | Google OAuth クライアント ID | `GoogleDriveAdapter` | 未発行。**Phase 3 までにユーザーが発行＋リダイレクト URI 登録** |
-| 5 | CSP の保存先 FQDN 列挙 | `index.html` `<meta>` | 方針は確定（`'self'`＋保存先）。**残: Dropbox/Google の具体 FQDN を列挙**（[12](./12-pwa-sw-csp.md)） |
+| 5 | CSP の保存先 FQDN 列挙 | `index.html` `<meta>` | **Dropbox 確定（2026-06-17）: `connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com`**（Phase 2 実装済）。Google は Phase 3（[12](./12-pwa-sw-csp.md)） |
 | 10 | アイコン一式・テーマカラー | manifest（[12](./12-pwa-sw-csp.md)） | **要用意** |
 | 11 | 言語リスト | i18n（[08](./08-routing-views.md) 設定） | 後回し（要件「設定画面」・Phase 6） |
 | 12 | `skipWaiting`/`clients.claim` の採否 | `sw/sw.ts`（[12](./12-pwa-sw-csp.md)） | 既定は安全側（次回起動で切替）。実装時確定 |

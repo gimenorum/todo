@@ -55,7 +55,22 @@
 - テスト: flicker（fake timers で 400/500ms 境界）／SyncService（InMemory＋Device ハーネスで push/pull/競合検出/暫定解決/エラー分類）／
   SyncScheduler（デバウンス・interval・dedup）／broadcast（スタブ配信）。全 95 件 green・Phase 1 回帰なし。
 
-### PR3 — UI ＋ composition root ＋ CSP ＋ 設計書反映（予定）
+### PR3 — UI ＋ composition root ＋ CSP ＋ 設計書反映 ＋ v0.2.0 化
+- `src/services/SettingsService.ts`: Dropbox OAuth（`connectDropbox`／`completeOAuthRedirect`／`disconnect`）と
+  `buildAdapter`（TokenProvider 注入・失効間際 refresh）、`isOAuthCallback`。App key は `import.meta.env.VITE_DROPBOX_APP_KEY`。
+- `src/syncRuntime.ts`（新・composition glue）: SyncService/Scheduler/Broadcast のライフサイクルと store 反映
+  （onOutcome/onStatus→setState）、`startup`（OAuth コールバック→runtime 構築→初回同期）、online バナー、teardown。
+- `src/state/actions.ts`: `SyncBridge` IF と connect/disconnect/syncNow/resolveConflict を追加、CRUD 後に notifyEdited、
+  設定変更で applyIntervalChange。`src/state/selectors.ts`: tasksBadge/settingsBadge/perTodoStatusOf。
+- `src/model/types.ts`: State に `banner` を追加。`src/ui/format.ts`: `formatTime`。
+- UI: StatusIndicator（ヘッダ全体ステータス）／Badge（ナビバッジ）／AppShell（マウント・バッジ・バナー・merge ルート実画面化）／
+  SettingsView（接続・切断・同期設定フォーム・今すぐ同期）／TaskListView（per-todo ステータス＋解決ボタン）／
+  ConflictMergeView（暫定二択）。`index.html` テンプレートに todo-sync-badge/todo-resolve。styles 追加。
+- `src/main.ts`: runtime/actions 結線、visibilitychange/online 購読、`startup` 呼び出し。
+- `vite.config.ts`: CSP `connect-src` に Dropbox FQDN。`src/vite-env.d.ts`: `VITE_DROPBOX_APP_KEY` 型。
+- 設計書: 05/06/09/10/11/12/16 を実装済へ、18 #3（App key=env var）・#5（Dropbox FQDN）を確定、16 に手動 E2E チェックリスト。
+- `package.json`: version **0.2.0**。
+- 検証: lint/typecheck/test（**103 件 green**）/build（51 modules・CSP に Dropbox・`__APP_VERSION__`=0.2.0）すべて green。
 
 ## 成果物（PR1）
 - 変更: `src/model/types.ts`, `src/model/constants.ts`, `src/store/db.ts`, `src/store/metaStore.ts`,
@@ -74,3 +89,16 @@
   `tests/state/broadcast.test.ts`
 - 変更: `src/model/constants.ts`, `src/adapters/DropboxAdapter.ts`
 - 証跡: `docs/history/2026-06-17-phase2-dropbox-sync.md`（PR2 追記）
+
+## 成果物（PR3）
+- 新規: `src/syncRuntime.ts`, `src/ui/layout/StatusIndicator.ts`, `src/ui/layout/Badge.ts`,
+  `src/ui/views/ConflictMergeView.ts`, `tests/services/settingsService.test.ts`
+- 変更: `src/services/SettingsService.ts`, `src/state/actions.ts`, `src/state/selectors.ts`,
+  `src/model/types.ts`, `src/ui/format.ts`, `src/ui/layout/AppShell.ts`, `src/ui/views/SettingsView.ts`,
+  `src/ui/views/TaskListView.ts`, `src/main.ts`, `src/vite-env.d.ts`, `index.html`, `vite.config.ts`,
+  `styles/layout.css`, `styles/components.css`, `package.json`,
+  `tests/state/selectors.test.ts`, `tests/state/store.test.ts`,
+  `docs/design/05-storage-adapter.md`, `docs/design/06-local-store.md`, `docs/design/09-status.md`,
+  `docs/design/10-conflict-ui.md`, `docs/design/11-sync-triggers.md`, `docs/design/12-pwa-sw-csp.md`,
+  `docs/design/16-testing.md`, `docs/design/18-open-questions.md`
+- 証跡: `docs/history/2026-06-17-phase2-dropbox-sync.md`（PR3 追記）

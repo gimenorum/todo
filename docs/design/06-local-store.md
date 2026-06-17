@@ -1,7 +1,7 @@
 # 06. ローカルストア（IndexedDB）
 
 > 要件トレース: requirements.md「対応プラットフォームと制約」「ローカルストア」「受け入れ基準」
-> 状態: 一部実装済（Phase 0：todos/settings/meta） ／ 実装フェーズ: 0（todos）→ 2（objects・BroadcastChannel）
+> 状態: 実装済（Phase 0：todos/settings/meta ／ Phase 2：objects/tokens・BroadcastChannel） ／ 実装フェーズ: 0（todos）→ 2（objects・BroadcastChannel）
 
 `idb` で IndexedDB を扱う。アプリは**常にローカルを読み書き**し、同期処理（[11](./11-sync-triggers.md)）がローカルのオブジェクトをリモートと双方向にやり取りする（要件「ローカルストア」）。
 

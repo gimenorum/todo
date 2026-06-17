@@ -2,7 +2,7 @@ import type { State, Todo } from '../../model/types';
 import type { UiContext, ViewController } from '../context';
 import { cloneTemplate, el, qs, renderKeyedList, setTextIfChanged } from '../dom';
 import { formatDate } from '../format';
-import { visibleTodos } from '../../state/selectors';
+import { showsSyncUi, visibleTodos } from '../../state/selectors';
 import { PRIORITY_LABEL } from '../../model/constants';
 
 // TODO 一覧（主画面）。id キー差分更新でフォーカス/スクロールを維持（ch.07・08）。
@@ -40,6 +40,7 @@ export function createTaskListView(ctx: UiContext): ViewController {
   root.append(form, empty, list);
 
   const nodeMap = new Map<string, HTMLElement>();
+  let currentState: State | null = null;
 
   function createItem(todo: Todo): HTMLElement {
     const node = cloneTemplate('tmpl-todo-item');
@@ -48,6 +49,8 @@ export function createTaskListView(ctx: UiContext): ViewController {
     done.addEventListener('change', () => void ctx.actions.toggleDone(todo.id, done.checked));
     const open = qs<HTMLButtonElement>(node, '.todo-open');
     open.addEventListener('click', () => ctx.navigate({ name: 'todo', id: todo.id }));
+    const resolve = qs<HTMLButtonElement>(node, '.todo-resolve');
+    resolve.addEventListener('click', () => ctx.navigate({ name: 'merge', id: todo.id }));
     return node;
   }
 
@@ -64,11 +67,27 @@ export function createTaskListView(ctx: UiContext): ViewController {
       qs(node, '.todo-tags'),
       todo.tags.length ? todo.tags.map((t) => `#${t}`).join(' ') : '',
     );
+
+    // per-todo 同期ステータス（連携済みのみ / ch.09 §9.3）。
+    const linked = currentState ? showsSyncUi(currentState) : false;
+    const st = currentState ? currentState.perTodoStatus[todo.id] : undefined;
+    const badge = qs(node, '.todo-sync-badge');
+    const resolve = qs<HTMLButtonElement>(node, '.todo-resolve');
+    if (linked && st) {
+      badge.hidden = false;
+      badge.className = `todo-sync-badge sync-${st}`;
+      setTextIfChanged(badge, st === 'conflict' ? '要解決' : st === 'unpushed' ? '未同期' : '同期済');
+      resolve.hidden = st !== 'conflict';
+    } else {
+      badge.hidden = true;
+      resolve.hidden = true;
+    }
   }
 
   return {
     el: root,
     update(state: State) {
+      currentState = state;
       const todos = visibleTodos(state);
       empty.hidden = todos.length > 0;
       renderKeyedList({

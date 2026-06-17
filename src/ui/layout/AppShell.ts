@@ -4,6 +4,9 @@ import { el } from '../dom';
 import { createTaskListView } from '../views/TaskListView';
 import { createTodoEditView } from '../views/TodoEditView';
 import { createSettingsView } from '../views/SettingsView';
+import { createConflictMergeView } from '../views/ConflictMergeView';
+import { createStatusIndicator } from './StatusIndicator';
+import { updateNavBadges } from './Badge';
 
 // トップレベルは「タスク」「設定」の 2 つのみ（ch.08）。「同期」専用タブは作らない。
 type NavTarget = 'tasks' | 'settings';
@@ -52,8 +55,8 @@ function createViewFor(state: State, ctx: UiContext): ViewController {
       return createSettingsView(ctx);
     case 'todo':
       return createTodoEditView(ctx, state.route.id);
-    // merge は Phase 4。未実装のためタスク一覧へフォールバック。
     case 'merge':
+      return createConflictMergeView(ctx, state.route.id); // 暫定競合解決（Phase 2）
     case 'tasks':
     default:
       return createTaskListView(ctx);
@@ -77,6 +80,11 @@ export function createAppShell(ctx: UiContext): {
     void ctx.actions.changeSettings({ sidebarCollapsed: collapsed });
   });
   header.append(toggle, el('h1', { class: 'app-title', text: 'TODO' }));
+  const status = createStatusIndicator();
+  header.append(status.el);
+
+  // online 復帰などの一時バナー（State.banner / ch.11 §11.3）。
+  const banner = el('div', { class: 'app-banner', attrs: { role: 'status', hidden: '' } });
 
   const bodyEl = el('div', { class: 'app-body' });
   const sidebar = buildNav('sidebar');
@@ -84,7 +92,7 @@ export function createAppShell(ctx: UiContext): {
   bodyEl.append(sidebar, main);
 
   const tabs = buildNav('tabs');
-  root.append(header, bodyEl, tabs);
+  root.append(header, banner, bodyEl, tabs);
 
   let current: ViewController | null = null;
   let currentKey = '';
@@ -103,6 +111,14 @@ export function createAppShell(ctx: UiContext): {
     update(state: State) {
       root.classList.toggle('sidebar-collapsed', state.settings.sidebarCollapsed);
       updateNavActive(root, state);
+      updateNavBadges(root, state);
+      status.update(state);
+      if (state.banner) {
+        banner.textContent = state.banner;
+        banner.hidden = false;
+      } else {
+        banner.hidden = true;
+      }
       ensureView(state);
       current?.update(state);
     },

@@ -1,7 +1,7 @@
 # 16. テスト設計
 
 > 要件トレース: requirements.md「実装フェーズ」「受け入れ基準」「テストすべき並行シナリオ」
-> 状態: 実装済（Phase 1） ／ 実装フェーズ: 1（6 シナリオ green が完了条件）
+> 状態: 実装済（Phase 1／Phase 2 のアダプタ・services・store テスト） ／ 実装フェーズ: 1→2
 
 中核（[04](./04-sync-engine.md)）の正しさを **Vitest で決定的に**検証する。テストは UI/IndexedDB に依存しない。
 
@@ -53,3 +53,13 @@
 ## 16.5 実アダプタ（Dropbox/Drive）の扱い
 
 - 実 API は単体の決定的テストに載せない。契約テストはモック/録画で代替し、**手動 E2E**（接続→同期→別端末反映→競合）をチェックリスト化して各 Phase の受け入れ確認に用いる。
+- **Phase 2 のテスト構成**: 契約スイートを `tests/helpers/contract.ts` に共有化し、InMemory と **Dropbox（モック fetch `tests/helpers/dropboxMock.ts`）** に同じ契約を適用。PKCE は純関数として検証（RFC 7636 既知ベクトル）。store 層（`objects`/`tokens`/`db` v2）は **`fake-indexeddb`**（`vite.config.ts` の `setupFiles`）で検証。SyncService/Scheduler は InMemory＋`Device` ハーネス＋fake timers（ちらつき 400/500ms・デバウンス・interval・dedup）。
+- **Phase 2 手動 E2E チェックリスト**（実 Dropbox／サンドボックス外でユーザーが実施。`VITE_DROPBOX_APP_KEY` 設定とアプリ登録が前提）:
+  1. 設定で「保存先に接続」→ 認可 → 復帰で `idle`、設定が「接続済み（Dropbox）」。
+  2. タスク作成 → 約 2 秒で push。別端末（別ブラウザ）で接続 → pull で同タスクが出る。
+  3. 両端末オフラインで別フィールド編集 → オンライン → 自動マージ・競合 0。
+  4. 同一フィールドを別値に編集 → per-todo「要解決」＋「同期不具合を解決する」→ merge 画面で二択 → 解決で competition 解消。
+  5. edit vs delete → `deleted` 競合 →「編集版を残す／削除を適用」の二択。
+  6. オフライン→オンラインでバナー＋同期。トークン失効 → `needs-reauth`＋設定タブにバッジ。
+  7. 複数タブで 1 つを編集 → 他タブが BroadcastChannel で再 materialize。
+  8. iOS: ホーム追加 → IDB クリア（ローカル消失）を模す → 起動で `heads/` 起点に復旧（[06 §6.4](./06-local-store.md)）。
