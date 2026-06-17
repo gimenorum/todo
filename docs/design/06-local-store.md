@@ -1,7 +1,7 @@
 # 06. ローカルストア（IndexedDB）
 
 > 要件トレース: requirements.md「対応プラットフォームと制約」「ローカルストア」「受け入れ基準」
-> 状態: ドラフト ／ 実装フェーズ: 0（todos）→ 2（objects・BroadcastChannel）
+> 状態: 一部実装済（Phase 0：todos/settings/meta） ／ 実装フェーズ: 0（todos）→ 2（objects・BroadcastChannel）
 
 `idb` で IndexedDB を扱う。アプリは**常にローカルを読み書き**し、同期処理（[11](./11-sync-triggers.md)）がローカルのオブジェクトをリモートと双方向にやり取りする（要件「ローカルストア」）。
 
@@ -9,7 +9,7 @@
 
 | store | keyPath | index | 内容 | フェーズ |
 |---|---|---|---|---|
-| `todos` | `id` | `updatedAt`, `dueDate`, `deleted` | materialize 済み TODO リスト（表示の正） | 0 |
+| `todos` | `id` | `updatedAt`, `dueDate` | materialize 済み TODO リスト（表示の正）。`deleted` は boolean ゆえ IndexedDB の index に使えない＝索引化せず、表示フィルタは `selectors`（メモリ）で行う | 0 |
 | `objects` | `hash` | `kind` | commit / blob のローカル複製 | 2 |
 | `meta` | `key` | — | advisory HEAD・lastSyncAt・deviceId | 0/2 |
 | `settings` | `key` | — | 端末ごと設定（同期しない / 要件「同期の設定・タイミング」） | 0 |

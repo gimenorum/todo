@@ -51,7 +51,7 @@ graph TD
 | `adapters/` | `model/`, `fetch`/OAuth | `core`, `store`, `state`, `ui` | I/O 集約（list/get/put/delete） |
 | `store/` | `model/`, `idb` | `core`, `adapters`, `state`, `ui` | ローカル永続 I/O |
 | `services/` | `core`, `store`, `adapters`, `model` | `ui`, DOM | オーケストレーション |
-| `state/` | `services`, `model` | DOM の直接操作 | 状態保持・pub/sub |
+| `state/` | `services`, `model` | DOM の直接操作・`idb`（永続 I/O は services 経由） | 状態保持・pub/sub |
 | `ui/` | `state`, `router`, `model` | `core`/`adapters`/`store` を直接呼ぶこと | DOM 副作用 |
 | `router/` | `state`, `model` | DOM 以外の I/O | URL ハッシュ ⇄ state |
 | `pwa/` | `state`（最小） | core/adapters/store | ブラウザ統合 |
