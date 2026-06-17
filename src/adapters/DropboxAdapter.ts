@@ -5,6 +5,7 @@
 // putIfAbsent は実装しない（CAS 非依存で正しさ成立 / ch.04 §4.3・§4.6）。
 import type { StorageAdapter } from '../model/types';
 import type { TokenProvider } from './oauth/tokenStore';
+import { AuthError } from './errors';
 
 const CONTENT = 'https://content.dropboxapi.com/2';
 const RPC = 'https://api.dropboxapi.com/2';
@@ -52,7 +53,7 @@ export class DropboxAdapter implements StorageAdapter {
   private checkAuth(status: number): void {
     if (status === 401) {
       this.onAuthError?.();
-      throw new Error('Dropbox 認証が失効しました（401）。再連携が必要です。');
+      throw new AuthError('Dropbox 認証が失効しました（401）。再連携が必要です。');
     }
   }
 

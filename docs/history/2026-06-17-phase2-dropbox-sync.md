@@ -40,7 +40,21 @@
   `fake-indexeddb` を devDep に追加し `vite.config.ts` の `setupFiles` に登録。
 - 検証: `npm run lint`／`typecheck`／`test`（85 件 green、Phase 1 の 6 シナリオ回帰なし）／`build` すべて green。
 
-### PR2 — 同期オーケストレーション（予定）
+### PR2 — 同期オーケストレーション
+- `src/services/syncLocalState.ts`（新）: core⇄IDB の橋渡し。`loadLocalState`／`persistLocalState`（差分 blob のみ書く）／
+  `snapshotFromTodos`／`appendCommitIfChanged`（materialized の変更を通常コミット化＝Device.commit のサービス版）。
+- `src/services/SyncService.ts`（新）: 1 回の同期（コミット→`syncOnce`→複製/HEAD 永続→materialize→`perTodoStatus`/`conflicts`/`lastSyncAt` 算出）。
+  結果は `onOutcome`/`onStatus` コールバックで返す（state 非依存＝単一経路）。ちらつき抑制 `createFlicker`（400ms 点灯遅延・最低 500ms 維持）、
+  暫定競合解決 `resolveConflictProvisional`（left/right・keep-edit/apply-delete）、`reloadFromLocal`。エラーは AuthError→needs-reauth／offline／error に分類。
+  競合フラグはセッション内で蓄積（Phase 2 暫定。データ＝left は常に保持。Phase 4 で本解決 UI に置換）。
+- `src/services/SyncScheduler.ts`（新）: 5 トリガ（編集後デバウンス 2 秒／間隔 pull／前面退避 flush／online 復帰＋バナー／手動）と
+  多重実行防止（`syncing`＋`pendingRerun`）。DOM イベント購読は composition root に委ね、フックのみ持つ（services は DOM 非依存）。
+- `src/state/broadcast.ts`（新）: BroadcastChannel ラッパ（'todo-sync'・通知のみ）。
+- `src/adapters/errors.ts`（新）＋ `DropboxAdapter`: 401 を `AuthError` で投げ、SyncService が needs-reauth に分類できるように。
+- `src/model/constants.ts`: `PUSH_DEBOUNCE_MS=2000`／`SYNCING_SHOW_DELAY_MS=400`／`SYNCING_MIN_VISIBLE_MS=500` を追加。
+- テスト: flicker（fake timers で 400/500ms 境界）／SyncService（InMemory＋Device ハーネスで push/pull/競合検出/暫定解決/エラー分類）／
+  SyncScheduler（デバウンス・interval・dedup）／broadcast（スタブ配信）。全 95 件 green・Phase 1 回帰なし。
+
 ### PR3 — UI ＋ composition root ＋ CSP ＋ 設計書反映（予定）
 
 ## 成果物（PR1）
@@ -52,3 +66,11 @@
   `tests/adapters/dropbox.test.ts`, `tests/adapters/oauth/pkce.test.ts`,
   `tests/store/db.test.ts`, `tests/store/objectStore.test.ts`, `tests/store/tokenStore.test.ts`
 - 証跡: `docs/history/2026-06-17-phase2-dropbox-sync.md`（本ファイル）
+
+## 成果物（PR2）
+- 新規: `src/services/syncLocalState.ts`, `src/services/SyncService.ts`, `src/services/SyncScheduler.ts`,
+  `src/state/broadcast.ts`, `src/adapters/errors.ts`,
+  `tests/services/flicker.test.ts`, `tests/services/syncService.test.ts`, `tests/services/syncScheduler.test.ts`,
+  `tests/state/broadcast.test.ts`
+- 変更: `src/model/constants.ts`, `src/adapters/DropboxAdapter.ts`
+- 証跡: `docs/history/2026-06-17-phase2-dropbox-sync.md`（PR2 追記）

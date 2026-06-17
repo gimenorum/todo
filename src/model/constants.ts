@@ -44,3 +44,8 @@ export const BREAKPOINT_PX = 768;
 
 // タブ間同期チャネル名（Phase 2 で使用 / ch.06）。
 export const BROADCAST_CHANNEL = 'todo-sync';
+
+// 同期トリガの既定値（ch.11 §11.2 / 18.1 #9）と全体ステータスのちらつき抑制（ch.09 §9.2）。
+export const PUSH_DEBOUNCE_MS = 2_000; // 編集後 push のデバウンス（2 秒）
+export const SYNCING_SHOW_DELAY_MS = 400; // この時間を超えて初めて 'syncing' を表示
+export const SYNCING_MIN_VISIBLE_MS = 500; // 'syncing' を最低限維持する時間（ちらつき防止）
