@@ -1,0 +1,186 @@
+/* フォーム・ボタン・TODO アイテム・設定（コンポーネント） */
+
+.btn,
+.add-todo-submit {
+  padding: 10px 16px;
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: var(--primary-contrast);
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+input[type='text'],
+input[type='date'],
+select,
+textarea,
+.add-todo-input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  width: 100%;
+}
+textarea {
+  resize: vertical;
+}
+
+/* 追加フォーム */
+.add-todo {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.add-todo-input {
+  flex: 1;
+}
+.add-todo-submit {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* 一覧 */
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.todo-done {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+.todo-open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: inherit;
+  padding: 0;
+  min-width: 0;
+}
+.todo-title {
+  font-size: 16px;
+  word-break: break-word;
+}
+.todo-item.done .todo-title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.todo-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.todo-meta:empty {
+  display: none;
+}
+.todo-priority:empty,
+.todo-due:empty,
+.todo-tags:empty {
+  display: none;
+}
+.todo-priority.pri-high {
+  color: var(--danger);
+  font-weight: 600;
+}
+.todo-priority.pri-med {
+  color: var(--warn);
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 32px 0;
+}
+
+/* 編集・設定の共通 */
+.todo-form,
+.settings-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.view-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.view-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field > label,
+.field > span {
+  font-size: 13px;
+  color: var(--muted);
+}
+.field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.field-inline .f-done {
+  width: 20px;
+  height: 20px;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+/* 設定セクション */
+.settings-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.settings-section h2 {
+  font-size: 15px;
+}
+.muted {
+  color: var(--muted);
+  font-size: 14px;
+}
