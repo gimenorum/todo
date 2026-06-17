@@ -1,0 +1,67 @@
+name: Release & Deploy
+
+# main の更新（PR マージ）を起点に、package.json の version から未作成のタグを作成し、
+# そのまま GitHub Pages へデプロイする（ch.15 §15.2/§15.3）。
+# 注意: GITHUB_TOKEN で push したタグは他 workflow を起動しない仕様のため、
+#       タグ event に頼らず本 workflow 内でデプロイまで完結させる。
+# 手動/UI でのタグ発行（任意コミットの再デプロイ等）は従来どおり deploy.yml が処理する。
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write # タグ作成のため（refs/tags/* への push。main ブランチは更新しない）
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      created: ${{ steps.tag.outputs.created }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create version tag from package.json if new
+        id: tag
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code origin "refs/tags/$version" >/dev/null 2>&1; then
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "Tag $version already exists; nothing to release."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$version" -m "Release $version"
+            git push origin "$version"
+            echo "created=true" >> "$GITHUB_OUTPUT"
+            echo "Created and pushed tag $version."
+          fi
+
+  deploy:
+    needs: tag
+    if: needs.tag.outputs.created == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
