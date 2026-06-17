@@ -23,20 +23,20 @@
 | — | [README](./README.md) | 目次・読む順・運用 | 確定 | — |
 | 00 | [概要](./00-overview.md) | スコープ・用語集・参照方針 | ドラフト | — |
 | 01 | [アーキテクチャ](./01-architecture.md) | レイヤリング・依存図・依存規約 | ドラフト | 全体 |
-| 02 | [ディレクトリ構成](./02-directory.md) | `src/` ツリー・責務 | ドラフト | 全体 |
-| 03 | [データモデル](./03-data-model.md) | TS 型骨子 | ドラフト | 0–1 |
+| 02 | [ディレクトリ構成](./02-directory.md) | `src/` ツリー・責務 | 一部実装済（P0） | 全体 |
+| 03 | [データモデル](./03-data-model.md) | TS 型骨子 | 一部実装済（P0） | 0–1 |
 | 04 | [同期エンジン](./04-sync-engine.md) | シリアライズ/ハッシュ/DAG/マージ | ドラフト | 1 |
 | 05 | [ストレージアダプタ](./05-storage-adapter.md) | 共通 IF・InMemory/Dropbox/Drive | ドラフト | 1–3 |
-| 06 | [ローカルストア](./06-local-store.md) | IndexedDB・BroadcastChannel | ドラフト | 0–2 |
-| 07 | [状態管理と DOM 更新](./07-state-and-dom.md) | setState→render・差分更新 | ドラフト | 0 |
-| 08 | [ルーティングと画面](./08-routing-views.md) | ハッシュルート・ナビ | ドラフト | 0 |
+| 06 | [ローカルストア](./06-local-store.md) | IndexedDB・BroadcastChannel | 一部実装済（P0） | 0–2 |
+| 07 | [状態管理と DOM 更新](./07-state-and-dom.md) | setState→render・差分更新 | 実装済（P0） | 0 |
+| 08 | [ルーティングと画面](./08-routing-views.md) | ハッシュルート・ナビ | 実装済（P0） | 0 |
 | 09 | [ステータス表示](./09-status.md) | 状態機械・ちらつき対策・バッジ | ドラフト | 2 |
 | 10 | [競合解決 UI](./10-conflict-ui.md) | WinMerge ライク解決画面 | ドラフト | 4 |
 | 11 | [同期トリガ](./11-sync-triggers.md) | 5 トリガ・デバウンス・復帰 | ドラフト | 2 |
-| 12 | [PWA / SW / CSP](./12-pwa-sw-csp.md) | 手書き SW・manifest・CSP | ドラフト | 0 |
+| 12 | [PWA / SW / CSP](./12-pwa-sw-csp.md) | 手書き SW・manifest・CSP | 実装済（P0） | 0 |
 | 13 | [エクスポート/インポート](./13-export-import.md) | 3 種・JSON 正本 | ドラフト | 5 |
-| 14 | [セキュリティ](./14-security.md) | v1 基本・Phase 6 暗号化 | ドラフト | 0/6 |
-| 15 | [ビルド・デプロイ・CI](./15-build-deploy-ci.md) | Vite・Actions・Git Flow | ドラフト | 0 |
+| 14 | [セキュリティ](./14-security.md) | v1 基本・Phase 6 暗号化 | 一部実装済（P0） | 0/6 |
+| 15 | [ビルド・デプロイ・CI](./15-build-deploy-ci.md) | Vite・Actions・Git Flow | 実装済（P0） | 0 |
 | 16 | [テスト設計](./16-testing.md) | 6 並行シナリオ | ドラフト | 1 |
 | 17 | [フェーズ対応表](./17-phase-map.md) | Phase ↔ 章 ↔ tag | 確定 | — |
 | 18 | [未確定事項](./18-open-questions.md) | 要決定リスト | 主要確定・残あり | — |
@@ -71,6 +71,7 @@
 
 - **状態**: `ドラフト`（初稿・方向性確定）→ `確定`（当該フェーズ着手前にレビュー済み）→ `実装済`（コードと一致を確認）
 - フェーズ着手時に該当章を「ドラフト → 確定」に引き上げ、実装完了で「実装済」にする。
+- 複数フェーズに跨る章は中間状態として `一部実装済（Phase N）` を用いる（当該フェーズ分の実装が完了し、コードと一致を確認した状態）。
 
 ## 設計書の書き方（約束）
 
