@@ -8,6 +8,12 @@ export type Priority = 'none' | 'low' | 'med' | 'high';
 export type Millis = number; // Unix epoch ミリ秒
 export type DeviceId = string; // 端末ごとに一度だけ生成して永続
 
+// 時刻注入（ch.16 §16.1）。services/tests は core へ時刻を注入し、
+// core/sync は Date.now() を直呼びしない（決定性のため）。
+export interface Clock {
+  now(): Millis;
+}
+
 // ---- 3.2 TODO 項目 ----
 export interface Todo {
   id: Uuid;
@@ -68,7 +74,7 @@ export interface FieldConflict {
 
 export interface SyncResult {
   mergedSnapshot: Snapshot; // 自動マージ後（競合フィールドは left を暫定保持）
-  newHead: Hash | null; // 生成したマージコミット（無ければ null）
+  newHead: Hash | null; // 同期後の先端（マージ有無は picked で判定。コミットが無ければ null）
   conflicts: FieldConflict[]; // 未解決の競合（per-todo / per-field）
   picked: { base: Hash | null; left: Hash; right: Hash } | null; // 観測用メタ
 }

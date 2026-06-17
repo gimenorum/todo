@@ -1,7 +1,7 @@
 # 16. テスト設計
 
 > 要件トレース: requirements.md「実装フェーズ」「受け入れ基準」「テストすべき並行シナリオ」
-> 状態: ドラフト ／ 実装フェーズ: 1（6 シナリオ green が完了条件）
+> 状態: 実装済（Phase 1） ／ 実装フェーズ: 1（6 シナリオ green が完了条件）
 
 中核（[04](./04-sync-engine.md)）の正しさを **Vitest で決定的に**検証する。テストは UI/IndexedDB に依存しない。
 
@@ -45,7 +45,7 @@
 
 ## 16.4 テストの不変条件
 
-- **`tests/core/` は `core/` と `model/` 以外を import しない**（[02 §2.3](./02-directory.md)）。UI/IDB/実アダプタに依存させない。
+- **`tests/core/` は `core/`・`model/`・`tests/helpers/` のみに依存する**（[02 §2.3](./02-directory.md)）。実アダプタ（Dropbox/Drive）・IDB・UI には直接・間接とも依存させない。テスト用 InMemory は `tests/helpers/`（`storage.ts`）経由で供給し、`tests/core` から `src/adapters` を直接 import しない（InMemory は純メモリで決定性を損なわない）。
 - 乱数・時刻・端末 ID をすべて注入し、フレーキーを排除（同じ入力→同じ結果）。
 - マージコミットは deviceId 非含＝決定的なので、収束テストは deviceId を別々にしても同一ハッシュになることを確認する。
 - Phase 1 の完了条件＝**6 シナリオ green**＋上記単体 green（要件「実装フェーズ」）。

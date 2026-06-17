@@ -1,7 +1,7 @@
 # 04. 同期エンジン（core）
 
 > 要件トレース: requirements.md「同期エンジン仕様」「受け入れ基準」「テストすべき並行シナリオ」
-> 状態: ドラフト ／ 実装フェーズ: 1（最重要・先行完成）
+> 状態: 実装済（Phase 1） ／ 実装フェーズ: 1（最重要・先行完成）
 
 本章はプロジェクトの中核。`core/` の各関数を「入出力／不変条件／計算量／擬似コード／対応テスト番号」で記述する。
 **擬似コードの粒度**: 不変条件と分岐網羅は明示し、データ構造操作の些末は省略する（実 TS は書かない）。
@@ -165,30 +165,50 @@ mergeSet(b, l, r):                       // b/l/r は配列（集合とみなす
 | 追加（base に無い） | 無し | left を採用（別項目は自動 / 要件「同期エンジン仕様」） |
 | 無し | 追加（base に無い） | right を採用 |
 | 同 id を両側で新規追加（base 無し） | — | base を「空 Todo 相当」としてフィールド 3-way |
-| edit | delete（`deleted: true`） | **`deleted` フィールドの競合として扱う**（自動解決しない）。UI は「編集版を残す／削除を適用」の二択（[10](./10-conflict-ui.md)） |
+| edit（**alive 側に内容編集あり**） | delete（`deleted: true`） | **`deleted` の競合**として扱う（自動解決しない）。暫定は alive（編集版を残す＝一覧から消さない）。UI は「編集版を残す／削除を適用」の二択（[10](./10-conflict-ui.md)） |
+| delete | 未編集（alive 側に内容編集なし） | **削除を自動適用**（片側だけが `deleted` を変更＝通常の片側変更。競合にしない） |
+| resurrect（base が `deleted`） | 未編集（削除のまま） | **復活を自動適用**（片側変更。競合にしない） |
 | delete | delete | 削除（tombstone を残す） |
 | edit | edit | フィールドごとに下記分岐 |
 
 ```
-SET_FIELDS = { 'tags' }                  // 集合マージ対象
+SET_FIELDS     = { 'tags' }                       // 集合マージ対象
+CONTENT_FIELDS = TodoField − { 'deleted' }        // 内容フィールド（deleted は存在/削除の別扱い）
 
 mergeTodo(b, l, r):
   // どちらかが存在しない（base にも無い純粋追加）は上表で確定
   // 両側に存在する場合（b は無くてもよい）:
   out = {}; conflicts = []
-  for f in TodoField:
+  // 1) 内容フィールド（deleted 以外）を 3-way
+  for f in CONTENT_FIELDS:
     if f in SET_FIELDS:
-      out[f] = mergeSet(b?[f], l[f], r[f])          // 競合を生まない
+      out[f] = mergeSet(b?[f], l[f], r[f])          // 競合を生まない（tags）
     else:
       res = mergeField(b?[f], l[f], r[f], f, id)
       out[f] = res.value
       if res.conflict: conflicts.push(res.conflict)
+  // 2) deleted を決定（edit vs delete のみ競合 / 片側変更は自動採用）
+  bd = b?.deleted ?? false
+  if l.deleted == r.deleted:
+    out.deleted = l.deleted                         // both tombstone / both alive
+  else:
+    alive = (l.deleted ? r : l)                     // deleted=false の側
+    if contentChangedVsBase(b, alive):              // alive 側に内容編集あり＝ edit vs delete
+      out.deleted = false                           // 編集版を残す（一覧から消さない）
+      conflicts.push({ todoId: id, field: 'deleted', base: bd, left: l.deleted, right: r.deleted })
+    else:                                           // delete / resurrect vs 未編集
+      out.deleted = (l.deleted != bd ? l.deleted : r.deleted)   // base から変化した側を自動採用
   // メタはタイブレーク用に最大を採る（競合対象にしない）
   out.version   = max(l.version, r.version)
   out.updatedAt = max(l.updatedAt, r.updatedAt)
   out.createdAt = b?.createdAt ?? min(l.createdAt, r.createdAt)
   out.order     = l.order    // v1 未使用のため left 据え置き
   return { todo: out, conflicts }
+
+// alive 側が base から内容（deleted 以外）を変えたか。base 不在は新規＝編集とみなす（安全側）
+contentChangedVsBase(b, side):
+  if b is null: return true
+  return ∃ f in CONTENT_FIELDS: not valueEq(b[f], side[f])
 
 merge3(base, left, right):
   result = {}; conflicts = []
@@ -221,7 +241,7 @@ merge3NoBase(left, right):               // snapshot 全体に resolveNoBase を
 
 ### 設計判断（確定）
 
-- **edit vs delete**（確定 / [18 #6](./18-open-questions.md)）: 「削除を勝たせる」のでなく **`deleted` フィールドの競合**として扱う（暫定は left=編集版を保持）。競合 UI ではこれを **「編集版を残す／削除を適用」の二択**として提示する（[10](./10-conflict-ui.md)）。根拠＝受け入れ基準「黙って失われない」に最も忠実。対応テスト: #5。
+- **edit vs delete**（確定 / [18 #6](./18-open-questions.md)）: 「削除を勝たせる」のでなく **`deleted` フィールドの競合**として扱う。**ただし競合化するのは「片側が削除・他方が内容編集」の場合のみ**。片側が削除しもう片側が当該 TODO を未編集なら、通常の片側変更として **削除を自動適用**する（同様に「復活 vs 未編集」は復活を自動適用）。これにより無用な競合を避けつつ、編集が削除で黙って消える事態を防ぐ。競合時の暫定は **alive（編集版）を保持**（一覧から消さない・hash 順非依存）。UI は **「編集版を残す／削除を適用」の二択**（[10](./10-conflict-ui.md)）。根拠＝受け入れ基準「黙って失われない」に最も忠実。対応テスト: #5、削除 vs 未編集の自動適用テスト（[16](./16-testing.md)）。
 - **tags（配列）**（確定 / [18 #7](./18-open-questions.md)）: **集合 3-way**（`mergeSet`）。単純値比較だと並びの違いで無用な競合が出るため採らない。
 - **LCA tie-break**（確定 / [18 #8](./18-open-questions.md)）: 極大共通祖先を `(timestamp, hash)` の全順序で一意化（§4.4）。
 - **メタ（version/updatedAt）**: 競合対象にせず最大値を採る。タイブレーク専用。
@@ -259,6 +279,7 @@ syncOnce(adapter, local):
   await pushReachableObjects(adapter, reachableFrom(target, all))   // ② べき等
   // 5) advisory HEAD は最後（ヒントの更新＝heads/ 配下）
   await writeAdvisoryHead(adapter, target)                          // ③ 最後
+  // newHead は同期後の先端（target）。マージ有無は picked（マージ時のみ非 null）で判定する。
   return { mergedSnapshot, newHead: target, conflicts, picked }
 ```
 
