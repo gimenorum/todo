@@ -184,3 +184,61 @@ textarea {
   color: var(--muted);
   font-size: 14px;
 }
+
+/* per-todo 同期ステータス・解決ボタン（ch.09 §9.3 / ch.10） */
+.todo-sync-badge {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.todo-sync-badge.sync-conflict {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+.todo-sync-badge.sync-unpushed {
+  color: var(--warn);
+}
+.todo-resolve {
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+  border-radius: var(--radius);
+}
+
+/* 暫定競合解決画面（ch.10 §10.4 / Phase 2） */
+.merge-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.merge-fields {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.merge-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.merge-field-name {
+  font-size: 13px;
+  color: var(--muted);
+}
+.merge-val {
+  font-size: 14px;
+  word-break: break-word;
+}

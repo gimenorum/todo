@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { compareTodos, findTodo, visibleTodos } from '../../src/state/selectors';
+import {
+  compareTodos,
+  findTodo,
+  perTodoStatusOf,
+  settingsBadge,
+  tasksBadge,
+  visibleTodos,
+} from '../../src/state/selectors';
 import type { State, Todo } from '../../src/model/types';
 import { DEFAULT_SETTINGS } from '../../src/model/constants';
 
@@ -28,6 +35,7 @@ function stateWith(todos: Todo[]): State {
     lastSyncAt: null,
     perTodoStatus: {},
     conflicts: [],
+    banner: null,
     route: { name: 'tasks' },
   };
 }
@@ -56,5 +64,31 @@ describe('state/selectors', () => {
     const s = stateWith([todo({ id: 'a' }), todo({ id: 'b' })]);
     expect(findTodo(s, 'b')?.id).toBe('b');
     expect(findTodo(s, 'z')).toBeUndefined();
+  });
+});
+
+describe('state/selectors（Phase 2 同期系）', () => {
+  it('tasksBadge は競合のある todo 件数（フィールド数ではなく todo 単位）', () => {
+    const s: State = {
+      ...stateWith([]),
+      conflicts: [
+        { todoId: 'a', field: 'title', base: 0, left: 1, right: 2 },
+        { todoId: 'a', field: 'notes', base: 0, left: 1, right: 2 },
+        { todoId: 'b', field: 'done', base: false, left: true, right: false },
+      ],
+    };
+    expect(tasksBadge(s)).toBe(2);
+  });
+
+  it('settingsBadge は needs-reauth / error で true', () => {
+    expect(settingsBadge({ ...stateWith([]), global: 'needs-reauth' })).toBe(true);
+    expect(settingsBadge({ ...stateWith([]), global: 'error' })).toBe(true);
+    expect(settingsBadge({ ...stateWith([]), global: 'idle' })).toBe(false);
+  });
+
+  it('perTodoStatusOf は perTodoStatus を引く', () => {
+    const s: State = { ...stateWith([]), perTodoStatus: { a: 'conflict' } };
+    expect(perTodoStatusOf(s, 'a')).toBe('conflict');
+    expect(perTodoStatusOf(s, 'z')).toBeUndefined();
   });
 });

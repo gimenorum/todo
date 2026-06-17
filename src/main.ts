@@ -5,6 +5,7 @@ import '../styles/components.css';
 import type { State } from './model/types';
 import { createStore } from './state/store';
 import { createActions } from './state/actions';
+import { createSyncRuntime } from './syncRuntime';
 import { currentRoute, navigate, startRouter } from './router/router';
 import { createAppShell } from './ui/layout/AppShell';
 import type { UiContext } from './ui/context';
@@ -25,15 +26,17 @@ async function bootstrap(): Promise<void> {
   const initial: State = {
     todos: allTodos.filter((t) => !t.deleted),
     settings,
-    global: 'unlinked', // Phase 0 は未連携固定＝同期系 UI を出さない（ch.09）。
+    global: 'unlinked', // startup() が連携状態に応じて idle/needs-reauth へ更新する（ch.09）。
     lastSyncAt: null,
     perTodoStatus: {},
     conflicts: [],
+    banner: null,
     route: currentRoute(),
   };
 
   const store = createStore(initial);
-  const actions = createActions(store);
+  const runtime = createSyncRuntime(store); // services↔state を結線する同期ランタイム。
+  const actions = createActions(store, runtime);
   const install = setupInstall();
   const ctx: UiContext = { store, actions, navigate, install };
 
@@ -49,6 +52,16 @@ async function bootstrap(): Promise<void> {
 
   startRouter(store);
   registerServiceWorker();
+
+  // 同期トリガのうち DOM 由来（前面退避・online 復帰）は root で購読し scheduler フックへ渡す
+  //（services は DOM 非依存 / ch.11）。
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) runtime.onVisibilityHidden();
+  });
+  window.addEventListener('online', () => runtime.onOnline());
+
+  // OAuth コールバック処理 ＋ 連携済みなら同期ランタイム構築・初回同期（ch.05・06・11）。
+  await runtime.startup();
 }
 
 void bootstrap().catch((err: unknown) => {

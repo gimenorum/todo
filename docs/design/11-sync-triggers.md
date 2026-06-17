@@ -1,7 +1,7 @@
 # 11. 同期トリガとスケジューリング
 
 > 要件トレース: requirements.md「同期の設定・タイミング」「受け入れ基準」
-> 状態: ドラフト ／ 実装フェーズ: 2
+> 状態: 実装済（Phase 2） ／ 実装フェーズ: 2
 
 `services/SyncScheduler.ts` が同期の起動を司る。実際の 1 回の同期は [04 §4.6](./04-sync-engine.md) の `syncOnce`。
 

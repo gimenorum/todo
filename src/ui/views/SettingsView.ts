@@ -2,54 +2,79 @@ import type { State } from '../../model/types';
 import type { UiContext, ViewController } from '../context';
 import { el } from '../dom';
 
-// 設定シェル（ch.08）。未連携時は同期系ステータス/バッジを出さない（受け入れ基準 / ch.09）。
-// 接続導線だけは常設する（連携導線は設定に置く）。
+// 設定シェル（ch.08）。未連携時は同期系 UI を出さない（受け入れ基準 / ch.09）。
+// 連携導線は設定に置く（Dropbox OAuth / ch.05）。
 export function createSettingsView(ctx: UiContext): ViewController {
   const root = el('section', { class: 'settings-view' });
   root.append(el('h2', { class: 'view-title', text: '設定' }));
 
-  // クラウド連携（接続導線を常設。実接続は Phase 2 以降）
+  // --- クラウド連携 ---
   const link = el('section', { class: 'settings-section' });
   link.append(el('h2', { text: 'クラウド連携' }));
-  link.append(
-    el('p', {
-      class: 'muted',
-      text: '保存先はまだ接続されていません。接続すると複数端末で同期できます（Phase 2 以降で対応）。',
-    }),
-  );
-  const connectBtn = el('button', { class: 'btn', text: '保存先に接続', attrs: { type: 'button' } });
+  const linkDesc = el('p', { class: 'muted' });
+  link.append(linkDesc);
+
+  const connectBtn = el('button', { class: 'btn', text: '保存先に接続（Dropbox）', attrs: { type: 'button' } });
   const connectNote = el('p', { class: 'muted', attrs: { hidden: '' } });
-  connectBtn.addEventListener('click', () => {
-    connectNote.textContent =
-      '同期機能（Dropbox / Google Drive）は今後のフェーズで提供します。';
-    connectNote.hidden = false;
+  const disconnectBtn = el('button', {
+    class: 'btn btn-secondary',
+    text: '保存先から切断',
+    attrs: { type: 'button', hidden: '' },
   });
-  link.append(connectBtn, connectNote);
+  connectBtn.addEventListener('click', () => {
+    connectNote.hidden = true;
+    void ctx.actions.connect().catch((e: unknown) => {
+      connectNote.textContent = e instanceof Error ? e.message : String(e);
+      connectNote.hidden = false;
+    });
+  });
+  disconnectBtn.addEventListener('click', () => void ctx.actions.disconnect());
+  link.append(connectBtn, disconnectBtn, connectNote);
   root.append(link);
 
-  // 同期設定（接続後に出す。未連携では同期系 UI を出さない）
-  const sync = el('section', { class: 'settings-section' });
+  // --- 同期設定（連携済みのみ表示） ---
+  const sync = el('section', { class: 'settings-section', attrs: { hidden: '' } });
   sync.append(el('h2', { text: '同期設定' }));
-  sync.append(
-    el('p', {
-      class: 'muted',
-      text: '保存先に接続すると、自動同期の間隔（「手動のみ」も選択可）を設定できます。',
-    }),
-  );
+
+  const modeManual = el('input', { class: 'f-mode', attrs: { type: 'radio', name: 'autosync', value: 'manual' } });
+  const modeInterval = el('input', { class: 'f-mode', attrs: { type: 'radio', name: 'autosync', value: 'interval' } });
+  const manualLabel = el('label', { class: 'field field-inline' });
+  manualLabel.append(modeManual, el('span', { text: '手動のみ' }));
+  const intervalLabel = el('label', { class: 'field field-inline' });
+  intervalLabel.append(modeInterval, el('span', { text: '自動（間隔）' }));
+
+  const intervalField = el('label', { class: 'field' });
+  const intervalInput = el('input', {
+    class: 'f-interval',
+    attrs: { type: 'number', min: '1', max: '120', step: '1' },
+  });
+  intervalField.append(el('span', { text: '同期間隔（分）' }), intervalInput);
+
+  const onMode = (): void => {
+    void ctx.actions.changeSettings({ autoSyncMode: modeInterval.checked ? 'interval' : 'manual' });
+  };
+  modeManual.addEventListener('change', onMode);
+  modeInterval.addEventListener('change', onMode);
+  intervalInput.addEventListener('change', () => {
+    const min = Math.max(1, Math.min(120, Number(intervalInput.value) || 5));
+    void ctx.actions.changeSettings({ autoSyncIntervalMs: min * 60_000 });
+  });
+
+  const syncNowBtn = el('button', { class: 'btn', text: '今すぐ同期', attrs: { type: 'button' } });
+  syncNowBtn.addEventListener('click', () => void ctx.actions.syncNow());
+
+  sync.append(manualLabel, intervalLabel, intervalField, syncNowBtn);
   root.append(sync);
 
-  // データ（エクスポート/インポート）= Phase 5
+  // --- データ（Phase 5） ---
   const data = el('section', { class: 'settings-section' });
   data.append(el('h2', { text: 'データ' }));
   data.append(
-    el('p', {
-      class: 'muted',
-      text: 'タスク／設定のエクスポート・インポートは Phase 5 で提供します。',
-    }),
+    el('p', { class: 'muted', text: 'タスク／設定のエクスポート・インポートは Phase 5 で提供します。' }),
   );
   root.append(data);
 
-  // アプリ（インストール導線・バージョン）
+  // --- アプリ（インストール・バージョン） ---
   const app = el('section', { class: 'settings-section' });
   app.append(el('h2', { text: 'アプリ' }));
   const installLine = el('p', { class: 'muted' });
@@ -67,8 +92,7 @@ export function createSettingsView(ctx: UiContext): ViewController {
       installLine.textContent = 'ホーム画面／アプリとしてインストールできます。';
       installBtn.hidden = false;
     } else if (ctx.install.isIOS) {
-      installLine.textContent =
-        'Safari の共有メニューから「ホーム画面に追加」でインストールできます。';
+      installLine.textContent = 'Safari の共有メニューから「ホーム画面に追加」でインストールできます。';
       installBtn.hidden = true;
     } else {
       installLine.textContent = 'ブラウザのメニューからインストールできます（対応ブラウザ）。';
@@ -80,8 +104,22 @@ export function createSettingsView(ctx: UiContext): ViewController {
 
   return {
     el: root,
-    update(_state: State) {
-      // 設定値は変更時に即保存するため、ここでの再描画は不要（Phase 0）。
+    update(state: State) {
+      const connected = state.settings.connectedProvider !== 'none';
+      linkDesc.textContent = connected
+        ? '接続済み（Dropbox）。複数端末で同期されます。'
+        : '保存先に接続すると、複数端末で同期できます（Dropbox アプリと App key が必要）。';
+      connectBtn.hidden = connected;
+      disconnectBtn.hidden = !connected;
+      if (connected) connectNote.hidden = true;
+
+      sync.hidden = !connected;
+      const interval = state.settings.autoSyncMode === 'interval';
+      if (modeManual.checked === interval) modeManual.checked = !interval;
+      if (modeInterval.checked !== interval) modeInterval.checked = interval;
+      intervalField.hidden = !interval;
+      const min = String(Math.round(state.settings.autoSyncIntervalMs / 60_000));
+      if (intervalInput.value !== min) intervalInput.value = min;
     },
   };
 }

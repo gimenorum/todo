@@ -1,4 +1,4 @@
-import type { State, Todo, Uuid } from '../model/types';
+import type { State, Todo, TodoSyncStatus, Uuid } from '../model/types';
 
 // State からの派生（ch.07 §7.4）。再計算は単純に保つ（メモ化は必要時のみ）。
 
@@ -28,4 +28,19 @@ export function conflictCount(state: State): number {
 // 未連携時は同期系 UI を一切出さない（受け入れ基準 / ch.09）。Phase 0 は常に false。
 export function showsSyncUi(state: State): boolean {
   return state.global !== 'unlinked';
+}
+
+// タスクタブのバッジ＝競合のある TODO 件数（フィールド数ではなく todo 単位 / ch.09 §9.6）。
+export function tasksBadge(state: State): number {
+  return new Set(state.conflicts.map((c) => c.todoId)).size;
+}
+
+// 設定タブのバッジ＝要再接続/エラー時に出す（ch.09 §9.6）。
+export function settingsBadge(state: State): boolean {
+  return state.global === 'needs-reauth' || state.global === 'error';
+}
+
+// 個別 TODO の同期ステータス（無ければ undefined）。
+export function perTodoStatusOf(state: State, id: Uuid): TodoSyncStatus | undefined {
+  return state.perTodoStatus[id];
 }

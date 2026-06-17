@@ -128,6 +128,7 @@ export interface State {
   lastSyncAt: Millis | null;
   perTodoStatus: Record<Uuid, TodoSyncStatus>;
   conflicts: FieldConflict[]; // ナビのバッジ等の源
+  banner: string | null; // 一時バナー（online 復帰通知など / ch.11 §11.3）。無ければ null。
   route: Route; // 現在ルート（ch.08）
 }
 
