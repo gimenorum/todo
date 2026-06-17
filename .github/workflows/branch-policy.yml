@@ -1,0 +1,48 @@
+name: Branch policy
+
+# PR のマージ元（head）が、マージ先（base）ごとの許可パターンに一致するか検査する。
+# GitHub のブランチ保護/Ruleset には「PR の source ブランチ制限」機能が無いため、
+# このジョブを必須ステータスチェックにして機械強制する（ch.15 / 要件「Git ブランチ戦略」）。
+#   - main    ← develop または hotfix/*
+#   - develop ← feature/* または hotfix/*（hotfix の back-merge を許可 / 要件 Git Flow）
+#
+# 安全性: PR の中身は checkout せず、ブランチ名（base_ref/head_ref）のみ検査する。secrets も使わない。
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  branch-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR source branch
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          echo "PR: ${HEAD} -> ${BASE}"
+          case "${BASE}" in
+            main)
+              if [ "${HEAD}" = "develop" ] || [[ "${HEAD}" == hotfix/* ]]; then
+                echo "OK: main へは develop / hotfix/* から許可"
+              else
+                echo "::error::main へは develop または hotfix/* からのみマージ可（head=${HEAD}）"
+                exit 1
+              fi
+              ;;
+            develop)
+              if [[ "${HEAD}" == feature/* ]] || [[ "${HEAD}" == hotfix/* ]]; then
+                echo "OK: develop へは feature/* / hotfix/* から許可"
+              else
+                echo "::error::develop へは feature/* または hotfix/* からのみマージ可（head=${HEAD}）"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "対象外の base（${BASE}）。スキップ"
+              ;;
+          esac
