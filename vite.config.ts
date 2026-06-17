@@ -1,11 +1,15 @@
 import { defineConfig, type PluginOption } from 'vitest/config';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 
-// 本番オリジンに依存しない固定バージョン（決定 #1 / ch.15）。SW のキャッシュ名等に使う。
-const APP_VERSION = '0.0.1';
+// バージョンは package.json を単一の真実として参照（ch.15）。SW のキャッシュ名・設定画面表示に使う。
+// 別定数へハードコードすると版数がドリフトするため、リリース時は package.json の version だけ更新する。
+const APP_VERSION = (
+  JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf-8')) as { version: string }
+).version;
 
 /**
  * 本番ビルド時のみ CSP を <meta http-equiv> として注入する（GitHub Pages はヘッダ不可 / ch.12・14）。
