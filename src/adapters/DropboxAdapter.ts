@@ -1,0 +1,129 @@
+// adapters/DropboxAdapter.ts — Dropbox 保存先アダプタ（ch.05 §5.4）。
+// StorageAdapter の 4 操作を Dropbox API に写像する。鍵空間 objects/<hash>・heads/<deviceId>
+// をアプリ専用フォルダ配下のパス '/objects/...'・'/heads/...' に対応させる。
+// トークンは TokenProvider 注入で受け取り、store/idb は直接 import しない（依存方向 / ch.01）。
+// putIfAbsent は実装しない（CAS 非依存で正しさ成立 / ch.04 §4.3・§4.6）。
+import type { StorageAdapter } from '../model/types';
+import type { TokenProvider } from './oauth/tokenStore';
+
+const CONTENT = 'https://content.dropboxapi.com/2';
+const RPC = 'https://api.dropboxapi.com/2';
+
+export interface DropboxAdapterOptions {
+  tokens: TokenProvider;
+  // 認証失効（401）を検知したときに呼ぶ（services が global を needs-reauth へ）。
+  onAuthError?: () => void;
+}
+
+// key（'objects/ab..'）→ Dropbox パス（'/objects/ab..'）。
+function toPath(key: string): string {
+  return key.startsWith('/') ? key : `/${key}`;
+}
+// Dropbox パス（'/objects/ab..'）→ key（'objects/ab..'）。
+function toKey(path: string): string {
+  return path.startsWith('/') ? path.slice(1) : path;
+}
+
+interface ListEntry {
+  '.tag': 'file' | 'folder' | 'deleted';
+  path_lower?: string;
+  name: string;
+}
+interface ListResult {
+  entries: ListEntry[];
+  cursor: string;
+  has_more: boolean;
+}
+
+export class DropboxAdapter implements StorageAdapter {
+  private readonly tokens: TokenProvider;
+  private readonly onAuthError: (() => void) | undefined;
+
+  constructor(opts: DropboxAdapterOptions) {
+    this.tokens = opts.tokens;
+    this.onAuthError = opts.onAuthError;
+  }
+
+  private async authHeader(): Promise<string> {
+    return `Bearer ${await this.tokens.getAccessToken()}`;
+  }
+
+  // 401 を検知したら onAuthError を呼びエラーを投げる（SyncService が分類する）。
+  private checkAuth(status: number): void {
+    if (status === 401) {
+      this.onAuthError?.();
+      throw new Error('Dropbox 認証が失効しました（401）。再連携が必要です。');
+    }
+  }
+
+  async list(prefix: string): Promise<string[]> {
+    const folder = toPath(prefix).replace(/\/$/, ''); // '/objects/' → '/objects'
+    const out: string[] = [];
+    let res = await fetch(`${RPC}/files/list_folder`, {
+      method: 'POST',
+      headers: { Authorization: await this.authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: folder, recursive: false, limit: 2000 }),
+    });
+    if (res.status === 409) return out; // フォルダ未作成 = 空
+    this.checkAuth(res.status);
+    if (!res.ok) throw new Error(`Dropbox list_folder 失敗（${res.status}）`);
+    let page = (await res.json()) as ListResult;
+    for (;;) {
+      for (const e of page.entries) {
+        if (e['.tag'] === 'file' && e.path_lower) {
+          const key = toKey(e.path_lower);
+          if (key.startsWith(prefix)) out.push(key);
+        }
+      }
+      if (!page.has_more) break;
+      res = await fetch(`${RPC}/files/list_folder/continue`, {
+        method: 'POST',
+        headers: { Authorization: await this.authHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cursor: page.cursor }),
+      });
+      this.checkAuth(res.status);
+      if (!res.ok) throw new Error(`Dropbox list_folder/continue 失敗（${res.status}）`);
+      page = (await res.json()) as ListResult;
+    }
+    return out.sort();
+  }
+
+  async get(key: string): Promise<Uint8Array | null> {
+    const res = await fetch(`${CONTENT}/files/download`, {
+      method: 'POST',
+      headers: {
+        Authorization: await this.authHeader(),
+        'Dropbox-API-Arg': JSON.stringify({ path: toPath(key) }),
+      },
+    });
+    if (res.status === 409) return null; // path/not_found
+    this.checkAuth(res.status);
+    if (!res.ok) throw new Error(`Dropbox download 失敗（${res.status}）`);
+    return new Uint8Array(await res.arrayBuffer());
+  }
+
+  async put(key: string, bytes: Uint8Array): Promise<void> {
+    const res = await fetch(`${CONTENT}/files/upload`, {
+      method: 'POST',
+      headers: {
+        Authorization: await this.authHeader(),
+        'Dropbox-API-Arg': JSON.stringify({ path: toPath(key), mode: 'overwrite', mute: true }),
+        'Content-Type': 'application/octet-stream',
+      },
+      body: new Uint8Array(bytes), // ArrayBuffer 裏付けを保証（TS 5.7 BodyInit 対策）
+    });
+    this.checkAuth(res.status);
+    if (!res.ok) throw new Error(`Dropbox upload 失敗（${res.status}）`);
+  }
+
+  async delete(key: string): Promise<void> {
+    const res = await fetch(`${RPC}/files/delete_v2`, {
+      method: 'POST',
+      headers: { Authorization: await this.authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: toPath(key) }),
+    });
+    if (res.status === 409) return; // 既に無い = 冪等
+    this.checkAuth(res.status);
+    if (!res.ok) throw new Error(`Dropbox delete_v2 失敗（${res.status}）`);
+  }
+}

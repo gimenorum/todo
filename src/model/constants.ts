@@ -2,17 +2,20 @@ import type { DeviceSettings, Priority } from './types';
 
 // IndexedDB（ch.06）。
 export const DB_NAME = 'todo-db';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2; // Phase 2 で objects/tokens ストアを追加（v1→v2）。
 
 export const STORE = {
   todos: 'todos',
   settings: 'settings',
   meta: 'meta',
+  objects: 'objects', // content-addressed blob のローカル複製（ch.06 §6.1 / Phase 2）
+  tokens: 'tokens', // OAuth トークン（provider ごと / Phase 2）
 } as const;
 
 export const META_KEY = {
   deviceId: 'deviceId',
   lastSyncAt: 'lastSyncAt',
+  head: 'head', // advisory HEAD のローカル保持（ch.04 §4.3 / Phase 2）
 } as const;
 
 // settings store 内の単一レコードキー。

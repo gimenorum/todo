@@ -72,5 +72,7 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['tests/**/*.test.ts'],
     globals: false,
+    // store 層テスト用に IndexedDB を polyfill（jsdom/node とも未実装 / ch.16）。
+    setupFiles: ['fake-indexeddb/auto'],
   },
 });
