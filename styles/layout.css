@@ -1,0 +1,154 @@
+/* アプリシェル・レスポンシブナビ（~768px でサイドバー⇄ボトムタブ / ch.08） */
+
+.app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.sidebar-toggle {
+  display: none;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  color: var(--text);
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  padding-bottom: calc(var(--tabs-h) + 16px);
+}
+
+/* nav 共通 */
+.nav-link {
+  position: relative;
+  color: var(--muted);
+}
+.nav-icon {
+  font-size: 20px;
+}
+.nav-label {
+  font-size: 12px;
+}
+.nav-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* モバイル: 下部タブ（既定） */
+.app-nav-sidebar {
+  display: none;
+}
+.app-nav-tabs {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--tabs-h);
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  z-index: 10;
+}
+.app-nav-tabs .nav-link {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.app-nav-tabs .nav-link[aria-current='page'] {
+  color: var(--primary);
+}
+.app-nav-tabs .nav-badge {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(8px);
+}
+
+/* PC: サイドバー */
+@media (min-width: 768px) {
+  .sidebar-toggle {
+    display: inline-flex;
+  }
+  .app-main {
+    padding-bottom: 16px;
+  }
+  .app-nav-tabs {
+    display: none;
+  }
+  .app-nav-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: var(--sidebar-w);
+    padding: 12px;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .app-nav-sidebar .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    color: var(--text);
+  }
+  .app-nav-sidebar .nav-link[aria-current='page'] {
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary);
+  }
+  .app-nav-sidebar .nav-badge {
+    margin-left: auto;
+  }
+
+  .sidebar-collapsed .app-nav-sidebar {
+    width: var(--sidebar-w-collapsed);
+    align-items: center;
+  }
+  .sidebar-collapsed .app-nav-sidebar .nav-label {
+    display: none;
+  }
+}

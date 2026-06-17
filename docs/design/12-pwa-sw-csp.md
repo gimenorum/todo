@@ -1,7 +1,7 @@
 # 12. PWA / Service Worker / CSP / マニフェスト
 
 > 要件トレース: requirements.md「技術スタック」「対応プラットフォームと制約」「デプロイ / ホスティング」「セキュリティ」
-> 状態: ドラフト ／ 実装フェーズ: 0
+> 状態: 実装済（Phase 0） ／ 実装フェーズ: 0
 
 ## 12.1 Service Worker（手書き・依存なし）
 
@@ -10,12 +10,12 @@
 
 | 対象 | 戦略 | 備考 |
 |---|---|---|
-| アプリシェル（HTML/JS/CSS/アイコン） | precache | バージョン付きキャッシュ名（`app-shell-<buildId>`） |
-| ナビゲーション要求 | cache-first → ネット fallback | オフライン起動を保証 |
+| アプリシェル（HTML/JS/CSS/アイコン） | precache | バージョン付きキャッシュ名（`app-shell-<APP_VERSION>`。`vite.config.ts` の define 由来） |
+| ナビゲーション要求 | cache-first → ネット fallback | オフライン起動を保証。背面で再取得し `./index.html` を更新（stale-while-revalidate 風）＝ハッシュ無し HTML/manifest の陳腐化を緩和 |
 | データ（TODO） | キャッシュしない | IndexedDB が正（[06](./06-local-store.md)） |
 | OAuth/API 通信 | SW 介入しない | network only |
 
-- 更新フロー: 新 SW を `install` で precache、`activate` で旧キャッシュ掃除。`skipWaiting`/`clients.claim` の採否は実装時に確定（既定は安全側＝次回起動で切替）。
+- 更新フロー: 新 SW を `install` で precache、`activate` で旧キャッシュ掃除。**実装は安全側を採用＝`skipWaiting` は使わず（更新は次回起動で切替）、`activate` で `clients.claim` のみ**。
 
 ## 12.2 マニフェスト
 
@@ -27,7 +27,7 @@
 
 ## 12.3 CSP（`<meta http-equiv>`）
 
-GitHub Pages はレスポンスヘッダを設定できないため、CSP は `index.html` の `<meta http-equiv="Content-Security-Policy">` で指定する（要件「デプロイ / ホスティング」）。
+GitHub Pages はレスポンスヘッダを設定できないため、CSP は `index.html` の `<meta http-equiv="Content-Security-Policy">` で指定する（要件「デプロイ / ホスティング」）。本実装では**本番ビルド時のみ** Vite プラグインで `<meta charset>` の直後（後続リソース読み込みに効く位置）へ注入する。dev は HMR がインライン/eval を使うため注入しない（`vite.config.ts`）。
 
 方針（**オリジン非依存**＝決定 #1）。アプリ自身のオリジンは `'self'` で吸収するため、本番オリジンを CSP にハードコードしない。保存先（Dropbox/Google）の固定 FQDN だけを列挙する（残: 具体 FQDN は [18](./18-open-questions.md) #5）。
 
@@ -37,8 +37,11 @@ GitHub Pages はレスポンスヘッダを設定できないため、CSP は `i
 | `script-src` | `'self'`（インライン不可＝nonce 不要設計） |
 | `style-src` | `'self'`（必要なら `'unsafe-inline'` を最小限） |
 | `img-src` | `'self' data:` |
-| `connect-src` | `'self'` ＋ **保存先 FQDN（Dropbox/Google）を列挙**（自オリジンは `'self'`＝オリジン非依存） |
+| `connect-src` | `'self'` ＋ **保存先 FQDN（Dropbox/Google）を列挙**（自オリジンは `'self'`＝オリジン非依存。Phase 0 は `'self'` のみ） |
 | `object-src` | `'none'` |
+| `base-uri` | `'self'` |
+| `manifest-src` | `'self'` |
+| `worker-src` | `'self'`（手書き SW の登録元） |
 
 ## 12.4 オフライン / インストール
 

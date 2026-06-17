@@ -1,7 +1,7 @@
 # 02. ディレクトリ / モジュール構成
 
 > 要件トレース: requirements.md「技術スタック」「同期エンジン仕様」「ローカルストア」
-> 状態: ドラフト ／ 実装フェーズ: 全体
+> 状態: 一部実装済（Phase 0 範囲） ／ 実装フェーズ: 全体
 
 [01 アーキテクチャ](./01-architecture.md) のレイヤを、具体的な `src/` ツリーに落とす。各ファイルは単一責務を保ち、レイヤ規約表（§1.3）の依存方向を守る。
 
@@ -52,7 +52,7 @@ src/
     layout/                   … AppShell, Sidebar, BottomTabs, StatusIndicator, Badge
     views/                    … TaskListView, TodoEditView, SettingsView, ConflictMergeView
     components/               … TodoItem, FieldDiff, TextDiff, MergePreview
-    templates/                … <template> 群（または HTML 文字列）
+    templates/                … <template> 群（Phase 0 は index.html に集約。複雑化したらここへ分離）
     dom.ts                    … template クローン・textContent ヘルパ・keyed リスト差分
   pwa/
     registerSW.ts             … SW 登録・更新通知
@@ -92,7 +92,7 @@ tests/
 - **1 ファイル 1 責務**。`core/` の各ファイルは「serialize / hash / objects / dag / merge / sync」と段階で分け、依存は概ね下から上（`merge` は `dag`・`objects` に依存、`sync` は全てを編成）。
 - **core の公開境界は `core/index.ts`（barrel）**。他レイヤは個別ファイルでなく barrel 経由で import する。
 - **`tests/core/` は `core/` と `model/` 以外を import しない**（不変条件）。store/ui/adapters の実体に依存させない。これが「core は UI 非依存」をテスト側からも保証する。
-- `ui/templates/` は `<template>` を基本とし、文字列連結での DOM 生成を禁止（→ [07](./07-state-and-dom.md)・`innerHTML` 不使用）。
+- `<template>` を基本とし（Phase 0 は `index.html` に集約、複雑化したら `ui/templates/` へ分離）、文字列連結での DOM 生成を禁止（→ [07](./07-state-and-dom.md)・`innerHTML` 不使用）。
 
 ## 2.4 関連する不変条件
 

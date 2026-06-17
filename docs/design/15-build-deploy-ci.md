@@ -1,7 +1,7 @@
 # 15. ビルド・デプロイ・CI
 
 > 要件トレース: requirements.md「Git ブランチ戦略」「技術スタック」「デプロイ / ホスティング」
-> 状態: ドラフト ／ 実装フェーズ: 0
+> 状態: 実装済（Phase 0） ／ 実装フェーズ: 0
 
 ## 15.1 ビルド（Vite）
 
@@ -19,7 +19,7 @@
 
 | イベント | ジョブ | 必須チェック |
 |---|---|---|
-| PR（→ develop / main） | lint＋typecheck＋test＋build＋**依存逆流 lint**（[01 §1.5](./01-architecture.md)） | green 必須（ブランチ保護） |
+| PR（→ develop / main） | lint（**依存逆流 lint を内包**＝独立ジョブにしない / [01 §1.5](./01-architecture.md)）＋typecheck＋test＋build | green 必須（ブランチ保護） |
 | `main` のバージョンタグ（`v*`） | build → Pages デプロイ | — |
 
 ## 15.3 Git Flow 運用（簡易）
