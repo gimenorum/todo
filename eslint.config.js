@@ -96,6 +96,24 @@ export default tseslint.config(
     },
   },
 
+  // services/: core・store・adapters・model を編成。ui/state/router/pwa は呼ばない（ch.01 §1.3）。
+  {
+    files: ['src/services/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/ui/**', '**/state/**', '**/router/**', '**/pwa/**'],
+              message: 'services/ は ui/state/router/pwa に依存しない（下位レイヤのみ編成 / ch.01）。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // sw/: 独立（WebWorker グローバル）。
   {
     files: ['src/sw/**/*.ts'],

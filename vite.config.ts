@@ -28,17 +28,14 @@ function injectCspMeta(): PluginOption {
     name: 'inject-csp-meta',
     transformIndexHtml(html, ctx) {
       if (ctx.server) return html; // dev では入れない（HMR と相性が悪い）
-      // 後続のリソース読み込みに効くよう <head> 先頭へ注入する。
-      return {
-        html,
-        tags: [
-          {
-            tag: 'meta',
-            injectTo: 'head-prepend',
-            attrs: { 'http-equiv': 'Content-Security-Policy', content: csp },
-          },
-        ],
-      };
+      // charset を最優先に保ち、CSP はその直後へ置く（後続リソース読み込みに効かせる / ch.12）。
+      const cspTag = `<meta http-equiv="Content-Security-Policy" content="${csp}" />`;
+      const withCsp = html.replace(
+        /(<meta\s+charset=["'][^"']*["']\s*\/?>)/i,
+        `$1\n    ${cspTag}`,
+      );
+      // charset が見つからない場合のフォールバック（head 先頭）。
+      return withCsp === html ? html.replace(/<head>/i, `<head>\n    ${cspTag}`) : withCsp;
     },
   };
 }
