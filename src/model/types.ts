@@ -88,6 +88,19 @@ export interface StorageAdapter {
   putIfAbsent?(key: string, bytes: Uint8Array): Promise<boolean>; // CAS は任意の最適化
 }
 
+// ---- 3.5.1 OAuth トークン（Phase 2 / ch.05・06・14） ----
+// 連携プロバイダ（DeviceSettings.connectedProvider の 'none' を除いた実保存先）。
+export type SyncProvider = 'dropbox' | 'gdrive';
+
+// OAuth トークン。tokens ストア（store/tokenStore）に provider ごとに保持する。
+// 防御境界ではない前提（ch.14）。refreshToken は token_access_type=offline 指定時のみ得られる。
+export interface StoredToken {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: Millis; // アクセストークン失効時刻（epoch ms）。無ければ無期限扱い。
+  accountId?: string;
+}
+
 // ---- 3.6 端末ごと設定（同期しない） ----
 export interface DeviceSettings {
   autoSyncMode: 'manual' | 'interval';
