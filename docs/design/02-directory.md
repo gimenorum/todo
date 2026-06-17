@@ -91,7 +91,7 @@ tests/
 
 - **1 ファイル 1 責務**。`core/` の各ファイルは「serialize / hash / objects / dag / merge / sync」と段階で分け、依存は概ね下から上（`merge` は `dag`・`objects` に依存、`sync` は全てを編成）。
 - **core の公開境界は `core/index.ts`（barrel）**。他レイヤは個別ファイルでなく barrel 経由で import する。
-- **`tests/core/` は `core/` と `model/` 以外を import しない**（不変条件）。store/ui/adapters の実体に依存させない。これが「core は UI 非依存」をテスト側からも保証する。
+- **`tests/core/` は `core/`・`model/`・`tests/helpers/` のみに依存する**（不変条件）。実アダプタ（Dropbox/Drive）・store・ui・idb には直接・間接とも依存させない。テスト用 InMemory は `tests/helpers/storage.ts` 経由で供給し、`tests/core` から `src/adapters` を直接 import しない。これが「core は UI 非依存」をテスト側からも保証する。
 - `<template>` を基本とし（Phase 0 は `index.html` に集約、複雑化したら `ui/templates/` へ分離）、文字列連結での DOM 生成を禁止（→ [07](./07-state-and-dom.md)・`innerHTML` 不使用）。
 
 ## 2.4 関連する不変条件
