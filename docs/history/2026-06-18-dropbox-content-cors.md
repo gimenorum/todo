@@ -22,13 +22,19 @@
   1. `arg` と `authorization`（`Bearer <token>`）を **URL クエリ**で渡す（独自ヘッダを使わない）。
   2. **`reject_cors_preflight=true`** を URL クエリに付ける（無いと URL パラメータ認証が無効＝**401「Invalid
      authorization value」**）。
-  3. **`Content-Type: text/plain; charset=dropbox-cors-hack`**（MIME が text/plain＝CORS 安全リストなので
-     preflight を起こさない／Dropbox は octet-stream 相当として受理。**無いと upload は 400「Missing Content-Type」**）。
+  3. **Content-Type（download / upload で要件が異なる）**: **download は付けない**（本文が無く不要。cors-hack
+     charset を付けると download は **400「Bad Content-Type」** で拒否される）。**upload は
+     `text/plain; charset=dropbox-cors-hack`**（安全リスト＝preflight 不要・Dropbox は octet-stream 相当として受理。
+     無いと **400「Missing Content-Type」**）。
   - `src/adapters/DropboxAdapter.ts`: `CORS_HACK_CT` 定数と `contentUrl(endpoint, arg)` ヘルパ（auth/arg/
-    reject_cors_preflight をクエリに）を追加。`get`/`put` は Content-Type に cors-hack のみ付ける単純リクエストに。
+    reject_cors_preflight をクエリに）を追加。`get` はヘッダ無し、`put` は cors-hack の Content-Type のみ。
     `list`/`delete`（RPC）は preflight を処理するため**ヘッダ方式のまま**。
-  - **反復経緯**: 初回（commit d1ad695）は ①のみで ②③が欠けており、本番テストで download=401／upload=400 が判明。
-    ②`reject_cors_preflight=true` と ③cors-hack Content-Type を追加して完成させた（本コミット）。
+  - **反復経緯（本番テストで段階的に判明）**:
+    - (i) 初回 d1ad695 は①のみ → CORS は解消したが download=401「Invalid authorization value」・
+      upload=400「Missing Content-Type」。
+    - (ii) 29add53 で②`reject_cors_preflight=true` と③cors-hack Content-Type を全 content 操作に付与 →
+      **download が 400「Bad Content-Type: text/plain; charset=dropbox-cors-hack」**（download はこの charset を拒否）。
+    - (iii) 本コミットで **download は Content-Type を付けない**ことにして解決。upload のみ cors-hack を残す。
   - `tests/helpers/dropboxMock.ts`: content は `arg`/`authorization` をクエリで受理（RPC は従来どおり本文）。
     URL はパスで判定（クエリ無視）。両形式を受理。
   - `tests/adapters/dropbox.test.ts`: 「content 操作は独自ヘッダ無し・arg/authorization はクエリ」で形状を固定。

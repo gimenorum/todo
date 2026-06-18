@@ -127,10 +127,11 @@ export class DropboxAdapter implements StorageAdapter {
   }
 
   async get(key: string): Promise<Uint8Array | null> {
-    // CORS 単純リクエスト: 独自ヘッダは付けず Content-Type のみ（cors-hack）。auth/arg はクエリ。
+    // CORS 単純リクエスト: download は本文が無いので **Content-Type を付けない**（ヘッダ無し＝安全リスト＝
+    // preflight 不要）。download は cors-hack charset を 400 で拒否し、かつ Content-Type 自体を要求しない。
+    // auth/arg/reject_cors_preflight はクエリ。
     const res = await fetch(await this.contentUrl('files/download', { path: toPath(key) }), {
       method: 'POST',
-      headers: { 'Content-Type': CORS_HACK_CT },
     });
     if (res.status === 409) return null; // path/not_found
     this.checkAuth(res.status);

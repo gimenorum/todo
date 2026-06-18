@@ -88,11 +88,12 @@ describe('DropboxAdapter 固有挙動', () => {
     expect(mock.store.has('/objects/abc')).toBe(true);
   });
 
-  it('content 操作（download/upload）は cors-hack（reject_cors_preflight ＋ text/plain ＋ クエリ認証）', async () => {
+  it('content 操作（download/upload）は cors-hack（reject_cors_preflight ＋ クエリ認証）で preflight を避ける', async () => {
     // ブラウザ CORS 対策（ch.05 §5.4）: content.dropboxapi.com は preflight を正しく返さないため、
     // ① arg/authorization を URL クエリで渡し、② reject_cors_preflight=true で URL パラメータ認証を有効化し、
-    // ③ Content-Type を text/plain;charset=dropbox-cors-hack（CORS 安全リスト）にして preflight を起こさない。
-    // 独自ヘッダ（Dropbox-API-Arg / Authorization）は付けない。本テストでこの形状を固定する。
+    // ③ 独自ヘッダ（Dropbox-API-Arg / Authorization）は付けない。Content-Type は download/upload で要件が
+    // 異なる: download は付けない（cors-hack charset を 400 で拒否）、upload は text/plain;charset=dropbox-cors-hack
+    // （安全リストかつ Dropbox が受理）。本テストでこの形状を固定する。
     const mock = createDropboxMock();
     const calls: { url: string; init?: RequestInit }[] = [];
     globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
@@ -104,19 +105,25 @@ describe('DropboxAdapter 固有挙動', () => {
     await a.put('objects/abc', new TextEncoder().encode('z'));
     await a.get('objects/abc');
 
-    const contentCalls = calls.filter((c) => /\/files\/(download|upload)/.test(c.url));
-    expect(contentCalls).toHaveLength(2);
-    for (const c of contentCalls) {
+    const get = calls.find((c) => /\/files\/download/.test(c.url));
+    const put = calls.find((c) => /\/files\/upload/.test(c.url));
+    expect(get).toBeDefined();
+    expect(put).toBeDefined();
+
+    for (const c of [get!, put!]) {
       const url = new URL(c.url);
       const h = new Headers(c.init?.headers);
       // arg・authorization・reject_cors_preflight はクエリで渡る
       expect(url.searchParams.get('arg')).toBeTruthy();
       expect(url.searchParams.get('authorization')).toMatch(/^Bearer /);
       expect(url.searchParams.get('reject_cors_preflight')).toBe('true');
-      // Content-Type は安全リストの cors-hack のみ。preflight を誘発する独自ヘッダは付けない
-      expect(h.get('Content-Type')).toBe('text/plain; charset=dropbox-cors-hack');
+      // preflight を誘発する独自ヘッダは付けない
       expect(h.has('Dropbox-API-Arg')).toBe(false);
       expect(h.has('Authorization')).toBe(false);
     }
+    // download は Content-Type を付けない（cors-hack charset は download で拒否される）
+    expect(new Headers(get!.init?.headers).has('Content-Type')).toBe(false);
+    // upload は安全リストの cors-hack Content-Type（無いと 400「Missing Content-Type」）
+    expect(new Headers(put!.init?.headers).get('Content-Type')).toBe('text/plain; charset=dropbox-cors-hack');
   });
 });
