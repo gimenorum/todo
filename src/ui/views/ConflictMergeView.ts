@@ -152,7 +152,7 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
     showingDone = true;
     root.replaceChildren(
       header(),
-      el('p', { class: 'empty', text: 'この項目の未解決の競合はありません。' }),
+      el('p', { class: 'empty', text: 'この項目で解決が必要な変更はありません。' }),
     );
   }
 
@@ -237,7 +237,7 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
       const input = inputFor(c.field, c.left);
       editLabel.append(
         editRadio,
-        el('span', { class: 'merge-pane-tag', text: '編集' }),
+        el('span', { class: 'merge-pane-tag', text: '直接入力' }),
         input,
       );
       li.append(editLabel);
@@ -314,7 +314,7 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
       );
     }
     previewEl.replaceChildren(
-      el('h3', { class: 'merge-preview-title', text: 'マージ結果プレビュー' }),
+      el('h3', { class: 'merge-preview-title', text: '編集後の内容' }),
       dl,
     );
   }
@@ -343,7 +343,7 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
       root.append(
         el('p', {
           class: 'muted',
-          text: `「${title}」で変更が衝突しました。フィールドごとに採用する値を選ぶか、直接編集してください。`,
+          text: `「${title}」で変更が衝突しました。項目ごとに、採用する値を選ぶか直接入力してください。`,
         }),
       );
       const list = el('ul', { class: 'merge-fields' });
@@ -365,7 +365,7 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
     renderPreview();
 
     const actions = el('div', { class: 'form-actions' });
-    const confirm = el('button', { class: 'btn', text: 'マージを確定', attrs: { type: 'button' } });
+    const confirm = el('button', { class: 'btn', text: '編集を確定', attrs: { type: 'button' } });
     confirm.addEventListener('click', () => {
       resolving = true;
       const patch = buildPatch(formConflicts, choices, deletedDecision);
