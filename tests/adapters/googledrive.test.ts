@@ -91,6 +91,29 @@ describe('GoogleDriveAdapter 固有挙動', () => {
     expect(reauth).toBe(true);
   });
 
+  it('list ウォーム後、既知 object の get・既存 put は findId（q=name）検索を出さない（Issue #27）', async () => {
+    const mock = createGoogleDriveMock();
+    let findCount = 0; // q=name='…'（findId のネットワーク検索）の回数
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (/[?&]q=name/.test(url)) findCount++;
+      return mock.fetch(input as unknown as string, init);
+    }) as unknown as typeof fetch;
+
+    // セットアップ: 別アダプタでサーバ状態（object・head）を用意する。
+    const seed = new GoogleDriveAdapter({ tokens });
+    await seed.put('objects/aaa', enc.encode('1'));
+    await seed.put('heads/dev', enc.encode('h'));
+
+    // 計測対象: キャッシュ空の新インスタンス。list('heads/') で全 id をウォームする。
+    const a = new GoogleDriveAdapter({ tokens });
+    await a.list('heads/');
+    const warmed = findCount; // list 自体は q=name を出さない
+    expect(dec.decode((await a.get('objects/aaa')) as Uint8Array)).toBe('1'); // get は findId 不要
+    await a.put('objects/aaa', enc.encode('1')); // 既存 object の put はスキップ（findId 不要）
+    expect(findCount).toBe(warmed); // ウォーム後は q=name 検索が増えない
+  });
+
   it('403 スコープ不足は AuthError（権限不足→再連携）', async () => {
     globalThis.fetch = (() =>
       Promise.resolve(

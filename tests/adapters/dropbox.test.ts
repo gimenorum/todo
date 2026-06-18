@@ -127,6 +127,27 @@ describe('DropboxAdapter 固有挙動', () => {
     expect(new Headers(put!.init?.headers).get('Content-Type')).toBe('text/plain; charset=dropbox-cors-hack');
   });
 
+  it('同一 objects/* を 2 回 put すると 2 回目は files/upload を出さない／heads は毎回（Issue #27）', async () => {
+    const mock = createDropboxMock();
+    let uploads = 0;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (/\/files\/upload/.test(url)) uploads++;
+      return mock.fetch(input as unknown as string, init);
+    }) as unknown as typeof fetch;
+    const enc = new TextEncoder();
+    const a = new DropboxAdapter({ tokens });
+
+    await a.put('objects/x', enc.encode('v'));
+    await a.put('objects/x', enc.encode('v')); // 既知＝スキップ
+    expect(uploads).toBe(1);
+
+    // heads/* は可変なので毎回アップロードする。
+    await a.put('heads/dev', enc.encode('a'));
+    await a.put('heads/dev', enc.encode('b'));
+    expect(uploads).toBe(3);
+  });
+
   it('content 401 は token を強制 refresh して 1 回リトライする（一過性のトークン状態を自己回復）', async () => {
     // stale-token → 401、forceRefresh 後に fresh-token → 200 を模す（list は通るが content だけ 401 の自己回復）。
     const refreshing: TokenProvider = (() => {
