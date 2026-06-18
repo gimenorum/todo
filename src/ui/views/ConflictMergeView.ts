@@ -7,8 +7,12 @@ import { PRIORITIES, PRIORITY_LABEL } from '../../model/constants';
 import { renderTextDiff } from '../components/TextDiff';
 
 // 競合解決 UI（WinMerge ライク / ch.10 §10.2・Phase 4）。
-// 左=この端末 / 右=相手 の 2 ペインをフィールド単位に並べ、選択 or 直接編集で解決する。
-// 確定で「フィールド単位の解決値を持つ patch」を作り、SyncService の updateTodo→runOnce 経路で
+// 左=オンライン / 右=保留中 の 2 ペインを項目単位に並べ、選択 or 直接編集で解決する。
+//   オンライン = マージで暫定採用され、いま全端末で適用・表示されている値（publish 済み）。
+//   保留中     = まだ適用されていない、もう一方の変更。
+//   ※ left/right は内容ハッシュの全順序で決まり、端末 identity では並べない（全端末が同じ結果に収束する
+//     ため。ゆえに「オンライン=適用中の値」は端末非依存で一意。「この端末/相手」のような逆転は起きない）。
+// 確定で「項目単位の解決値を持つ patch」を作り、SyncService の updateTodo→runOnce 経路で
 // マージコミットへ確定する（収束は Phase 2 の実績経路を流用 / SyncService.resolveConflict）。
 
 const FIELD_LABEL: Record<TodoField, string> = {
@@ -216,8 +220,8 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
 
     const name = `merge-${c.field}`;
     const panes = el('div', { class: 'merge-panes' });
-    const left = paneRadio(name, 'left', 'この端末', showValue(c.field, c.left));
-    const right = paneRadio(name, 'right', '相手', showValue(c.field, c.right));
+    const left = paneRadio(name, 'left', 'オンライン', showValue(c.field, c.left));
+    const right = paneRadio(name, 'right', '保留中', showValue(c.field, c.right));
     left.radio.checked = true; // 既定 left＝この端末を保持（データ消失なし / §10.5）
     left.radio.addEventListener('change', () => setMode(c.field, 'left'));
     right.radio.addEventListener('change', () => setMode(c.field, 'right'));
