@@ -6,7 +6,7 @@ import type { DeviceSettings } from '../../src/model/types';
 function mockSync(runOnce: () => Promise<void>): SyncService {
   return {
     runOnce,
-    resolveConflictProvisional: () => Promise.resolve(),
+    resolveConflict: () => Promise.resolve(),
     reloadFromLocal: () => Promise.resolve([]),
   };
 }

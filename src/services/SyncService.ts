@@ -4,6 +4,7 @@
 import { syncOnce, MissingObjectError } from '../core';
 import * as todoStore from '../store/todoStore';
 import * as todoSvc from './TodoService';
+import type { TodoPatch } from './TodoService';
 import { setLastSyncAt } from '../store/metaStore';
 import {
   appendCommitIfChanged,
@@ -32,8 +33,6 @@ export interface SyncOutcome {
   lastSyncAt: number;
 }
 
-export type ConflictChoice = 'left' | 'right' | 'keep-edit' | 'apply-delete';
-
 export interface SyncServiceDeps {
   adapter: StorageAdapter;
   deviceId: DeviceId;
@@ -45,7 +44,9 @@ export interface SyncServiceDeps {
 
 export interface SyncService {
   runOnce(): Promise<void>;
-  resolveConflictProvisional(todoId: Uuid, choice: ConflictChoice): Promise<void>;
+  // フィールド単位に解決した patch を適用してマージコミットを確定する（ch.10 §10.2 / Phase 4）。
+  // patch の組み立ては UI（ConflictMergeView.buildPatch）が担う。
+  resolveConflict(todoId: Uuid, patch: TodoPatch): Promise<void>;
   reloadFromLocal(): Promise<Todo[]>;
 }
 
@@ -102,7 +103,8 @@ function classifyError(err: unknown): GlobalSyncStatus {
 export function createSyncService(deps: SyncServiceDeps): SyncService {
   const flicker = createFlicker(deps.onStatus);
   // 競合フラグはセッション内で蓄積する。マージを行った端末が検出し、解決まで保持する
-  // （次回同期は単一先端で competition=[] を返すため、union で既存を維持する）。Phase 2 暫定。
+  // （次回同期は単一先端で conflicts=[] を返すため、union で既存を維持する）。
+  // 検出・蓄積は Phase 2 から不変。解決は Phase 4 のフィールド単位 UI（resolveConflict）。
   let activeConflicts: FieldConflict[] = [];
 
   function buildOutcome(snap: Snapshot, lastSyncAt: number): SyncOutcome {
@@ -154,20 +156,11 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
     }
   }
 
-  async function resolveConflictProvisional(todoId: Uuid, choice: ConflictChoice): Promise<void> {
-    const fields = activeConflicts.filter((c) => c.todoId === todoId);
-    if (fields.length > 0) {
-      const patch: Record<string, unknown> = {};
-      for (const c of fields) {
-        if (c.field === 'deleted') {
-          patch.deleted = choice === 'apply-delete'; // keep-edit/left/right → alive(false)
-        } else {
-          patch[c.field] = choice === 'right' ? c.right : c.left;
-        }
-      }
-      await todoSvc.updateTodo(todoId, patch);
-    }
-    // 解決した todo を競合集合から外し、解決コミットを push（runOnce 内で emit）。
+  async function resolveConflict(todoId: Uuid, patch: TodoPatch): Promise<void> {
+    // patch は UI（ConflictMergeView.buildPatch）が組んだ「フィールド単位の解決値」。
+    // 適用→競合集合から除外→runOnce で解決コミットを push（runOnce 内で emit）。
+    // マージコミット生成後は相手先端が祖先化して base となり、選択値は再競合せず収束する（§10.2）。
+    if (Object.keys(patch).length > 0) await todoSvc.updateTodo(todoId, patch);
     activeConflicts = activeConflicts.filter((c) => c.todoId !== todoId);
     await runOnce();
   }
@@ -178,5 +171,5 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
     return all.filter((t) => !t.deleted);
   }
 
-  return { runOnce, resolveConflictProvisional, reloadFromLocal };
+  return { runOnce, resolveConflict, reloadFromLocal };
 }

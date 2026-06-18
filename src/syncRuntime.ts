@@ -3,7 +3,8 @@
 // 本ファイルはレイヤ配下（core/ui/state/services）ではないため層 lint の対象外＝結線専用。
 import type { Store } from './state/store';
 import type { SyncBridge } from './state/actions';
-import { createSyncService, type ConflictChoice, type SyncOutcome, type SyncService } from './services/SyncService';
+import { createSyncService, type SyncOutcome, type SyncService } from './services/SyncService';
+import type { TodoPatch } from './services/TodoService';
 import { createSyncScheduler, type SyncScheduler } from './services/SyncScheduler';
 import { createBroadcast, type Broadcast } from './state/broadcast';
 import * as settingsSvc from './services/SettingsService';
@@ -132,8 +133,8 @@ export function createSyncRuntime(store: Store): SyncRuntime {
       scheduler?.notifyEdited();
     },
 
-    async resolveConflict(id: Uuid, choice: ConflictChoice) {
-      await svc?.resolveConflictProvisional(id, choice);
+    async resolveConflict(id: Uuid, patch: TodoPatch) {
+      await svc?.resolveConflict(id, patch);
     },
 
     async reloadFromLocal() {

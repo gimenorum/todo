@@ -56,7 +56,7 @@ function createViewFor(state: State, ctx: UiContext): ViewController {
     case 'todo':
       return createTodoEditView(ctx, state.route.id);
     case 'merge':
-      return createConflictMergeView(ctx, state.route.id); // 暫定競合解決（Phase 2）
+      return createConflictMergeView(ctx, state.route.id); // 競合解決 UI（ch.10 / Phase 4）
     case 'tasks':
     default:
       return createTaskListView(ctx);
