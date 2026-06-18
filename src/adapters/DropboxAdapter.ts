@@ -9,6 +9,9 @@ import { AuthError } from './errors';
 
 const CONTENT = 'https://content.dropboxapi.com/2';
 const RPC = 'https://api.dropboxapi.com/2';
+// Dropbox の CORS 回避用 Content-Type。MIME は text/plain（CORS 安全リスト）なので preflight を
+// 起こさず、かつ Dropbox はこの charset を octet-stream 相当として受理する（ch.05 §5.4）。
+const CORS_HACK_CT = 'text/plain; charset=dropbox-cors-hack';
 
 export interface DropboxAdapterOptions {
   tokens: TokenProvider;
@@ -47,6 +50,32 @@ export class DropboxAdapter implements StorageAdapter {
 
   private async authHeader(): Promise<string> {
     return `Bearer ${await this.tokens.getAccessToken()}`;
+  }
+
+  // content エンドポイント（download/upload）用の URL を組み立てる。Dropbox の「cors-hack」で
+  // CORS の「単純リクエスト」にし、ブラウザから直接呼べるようにする（ブラウザ診断で実証 / ch.05 §5.4）:
+  //   1) arg と authorization を **URL クエリ**で渡す（独自ヘッダ Dropbox-API-Arg/Authorization を使わない）。
+  //      authorization の値は `Bearer <token>`（生トークンのみは 400「Invalid authorization value」）。
+  //   2) reject_cors_preflight=true を付ける（これが無いと URL パラメータ認証が無効になる）。
+  //   3) Content-Type は呼び出し側で制御（download=付けない／upload=CORS_HACK_CT。download は cors-hack
+  //      charset を 400 で拒否するため付けない）。
+  // RPC（api.dropboxapi.com）は preflight を処理するのでヘッダ方式のまま（list/delete）。
+  // forceRefresh=true のときはトークンを再取得する（401 リトライ用）。
+  private async contentUrl(endpoint: string, arg: unknown, forceRefresh = false): Promise<string> {
+    const token = await this.tokens.getAccessToken(forceRefresh ? { forceRefresh: true } : undefined);
+    const auth = encodeURIComponent(`Bearer ${token}`);
+    const a = encodeURIComponent(JSON.stringify(arg));
+    return `${CONTENT}/${endpoint}?authorization=${auth}&arg=${a}&reject_cors_preflight=true`;
+  }
+
+  // content エンドポイントへ fetch。401 が返ったら token を**強制 refresh して URL を作り直し 1 回だけ
+  // リトライ**する（一過性のトークン状態 401＝list は通るが content だけ 401、を自己回復する / ch.05 §5.4）。
+  // 2 回目も 401 なら呼び出し側の checkAuth が AuthError（needs-reauth）にする。init は再利用する
+  //（body の Uint8Array は消費されないため再 fetch 可）。
+  private async contentFetch(endpoint: string, arg: unknown, init: RequestInit): Promise<Response> {
+    const res = await fetch(await this.contentUrl(endpoint, arg, false), init);
+    if (res.status !== 401) return res;
+    return fetch(await this.contentUrl(endpoint, arg, true), init);
   }
 
   // 401 を検知したら onAuthError を呼びエラーを投げる（SyncService が分類する）。
@@ -109,13 +138,8 @@ export class DropboxAdapter implements StorageAdapter {
   }
 
   async get(key: string): Promise<Uint8Array | null> {
-    const res = await fetch(`${CONTENT}/files/download`, {
-      method: 'POST',
-      headers: {
-        Authorization: await this.authHeader(),
-        'Dropbox-API-Arg': JSON.stringify({ path: toPath(key) }),
-      },
-    });
+    // download は本文が無いので Content-Type を付けない（ヘッダ無し＝CORS 安全リスト＝preflight 不要）。
+    const res = await this.contentFetch('files/download', { path: toPath(key) }, { method: 'POST' });
     if (res.status === 409) return null; // path/not_found
     this.checkAuth(res.status);
     if (!res.ok) return this.fail(res, 'download');
@@ -123,15 +147,17 @@ export class DropboxAdapter implements StorageAdapter {
   }
 
   async put(key: string, bytes: Uint8Array): Promise<void> {
-    const res = await fetch(`${CONTENT}/files/upload`, {
-      method: 'POST',
-      headers: {
-        Authorization: await this.authHeader(),
-        'Dropbox-API-Arg': JSON.stringify({ path: toPath(key), mode: 'overwrite', mute: true }),
-        'Content-Type': 'application/octet-stream',
+    // upload は Content-Type に cors-hack（text/plain＝安全リスト・preflight 不要・Dropbox は octet-stream
+    // 相当として受理）。application/octet-stream は preflight を誘発するため使わない。
+    const res = await this.contentFetch(
+      'files/upload',
+      { path: toPath(key), mode: 'overwrite', mute: true },
+      {
+        method: 'POST',
+        headers: { 'Content-Type': CORS_HACK_CT },
+        body: new Uint8Array(bytes), // ArrayBuffer 裏付けを保証（TS 5.7 BodyInit 対策）
       },
-      body: new Uint8Array(bytes), // ArrayBuffer 裏付けを保証（TS 5.7 BodyInit 対策）
-    });
+    );
     this.checkAuth(res.status);
     if (!res.ok) return this.fail(res, 'upload');
   }

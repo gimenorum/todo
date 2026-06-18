@@ -7,6 +7,7 @@ import * as todoStore from '../../src/store/todoStore';
 import { getDb } from '../../src/store/db';
 import { STORE } from '../../src/model/constants';
 import { fixedClock, makeDevice, makeTodo } from '../helpers/factories';
+import { decodeCommit, objKey } from '../../src/core';
 import type { GlobalSyncStatus, StorageAdapter } from '../../src/model/types';
 
 async function clearDb(): Promise<void> {
@@ -109,6 +110,41 @@ describe('services/SyncService', () => {
     last = outcomes.at(-1);
     expect(last?.conflicts).toEqual([]);
     expect(last?.perTodoStatus['t1']).toBe('synced');
+  });
+
+  it('相手先端の snapshot 未伝播でも「同期エラー」にせず idle（部分書き込みレース / hotfix 0.2.1）', async () => {
+    const remote = new InMemoryAdapter();
+    const clock = fixedClock();
+    const B = makeDevice('B', clock);
+    await B.commit((todos) => {
+      todos['t9'] = makeTodo({ id: 't9', title: 'FromB' });
+    });
+    await B.sync(remote);
+
+    // B の最新 snapshot blob だけがまだ伝播していない状況を模す（commit/head は可視）。
+    const bCommit = decodeCommit((await remote.get(objKey(B.head!)))!);
+    const snapKey = objKey(bCommit.snapshot);
+    const snapBytes = (await remote.get(snapKey))!;
+    await remote.delete(snapKey);
+
+    const outcomes: SyncOutcome[] = [];
+    const statuses: GlobalSyncStatus[] = [];
+    const svc = createSyncService({
+      adapter: remote,
+      deviceId: 'A',
+      clock,
+      onOutcome: (o) => outcomes.push(o),
+      onStatus: (s) => statuses.push(s),
+    });
+
+    await svc.runOnce(); // 未伝播 → throw せず idle、t9 はまだ取り込まれない
+    expect(statuses.at(-1)).toBe('idle');
+    expect(await todoStore.getTodo('t9')).toBeUndefined();
+
+    await remote.put(snapKey, snapBytes); // 伝播完了
+    await svc.runOnce();
+    expect(statuses.at(-1)).toBe('idle');
+    expect((await todoStore.getTodo('t9'))?.title).toBe('FromB');
   });
 
   it('アダプタが投げると status=error（outcome は出ない）', async () => {

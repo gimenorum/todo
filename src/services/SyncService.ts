@@ -1,7 +1,7 @@
 // services/SyncService.ts — 1 回の同期の実行・materialize・状態反映の単一経路（ch.01 §1.4・ch.06 §6.2）。
 // state を import せず、結果は onOutcome/onStatus コールバックで返す（actions が setState）。
 // ちらつき抑制（400/500ms）は本層で管理し、UI は state.global を素直に描画する（ch.09 §9.2）。
-import { syncOnce } from '../core';
+import { syncOnce, MissingObjectError } from '../core';
 import * as todoStore from '../store/todoStore';
 import * as todoSvc from './TodoService';
 import { setLastSyncAt } from '../store/metaStore';
@@ -138,6 +138,14 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
       await syncCycle();
       flicker.end('idle');
     } catch (err) {
+      // リモート未伝播のオブジェクト（別端末の push が伝播途中）は一時的事象。
+      // 「同期エラー」にせず idle に戻し、次回 pull で取り込む（手動同期が後で成功するのと同理）。
+      // 通常は syncOnce 内で握りつぶされ throw されないが、防御的に SyncService でも受ける。
+      if (err instanceof MissingObjectError) {
+        console.debug('[sync] リモート未伝播のためこの周回はスキップ:', err.message);
+        flicker.end('idle');
+        return;
+      }
       // 背景処理なので投げ直さない。状態（offline/error/needs-reauth）で UI に伝える。
       const status = classifyError(err);
       // 汎用 'error' は UI に「同期エラー」としか出ず原因が分からないため、必ずログに残す（診断容易性 / ch.09）。

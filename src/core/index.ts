@@ -25,4 +25,4 @@ export {
   type TodoMergeResult,
   type MergeResult,
 } from './merge';
-export { syncOnce, publishHead, type LocalState } from './sync';
+export { syncOnce, publishHead, MissingObjectError, type LocalState } from './sync';
