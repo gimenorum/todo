@@ -8,6 +8,7 @@ function mockSync(runOnce: () => Promise<void>): SyncService {
     runOnce,
     resolveConflict: () => Promise.resolve(),
     reloadFromLocal: () => Promise.resolve([]),
+    restoreConflicts: () => Promise.resolve(),
   };
 }
 

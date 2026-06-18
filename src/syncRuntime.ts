@@ -61,6 +61,8 @@ export function createSyncRuntime(store: Store): SyncRuntime {
       onStatus,
       broadcast: () => broadcast?.post({ type: 'todos-changed' }),
     });
+    // 起動時に未解決競合を復元する（初回同期より前）。リロードしても「解決する」が残る（Issue #26）。
+    await svc.restoreConflicts();
     scheduler = createSyncScheduler({
       sync: svc,
       getSettings: () => store.getState().settings,
