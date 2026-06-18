@@ -284,6 +284,9 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* 選択ペイン（マーカー）と「直接入力」を視覚的に区切る（Issue #42）。 */
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
 }
 .merge-edit .merge-input {
   flex: 1;
@@ -317,7 +320,17 @@ textarea {
   background: color-mix(in srgb, #16a34a 20%, transparent);
 }
 
-/* マージ結果プレビュー（§10.2）。 */
+/* 確定前の確認画面の注意書き（「同時確定は非推奨」/ Issue #42）。 */
+.merge-confirm-note {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* マージ結果プレビュー（§10.2・確認画面で表示 / Issue #42）。 */
 .merge-preview {
   background: var(--surface-2);
   border: 1px solid var(--border);
