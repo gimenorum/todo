@@ -19,12 +19,12 @@ export function createSettingsView(ctx: UiContext): ViewController {
   const linkDesc = el('p', { class: 'muted' });
   link.append(linkDesc);
 
-  const connectDropboxBtn = el('button', { class: 'btn', text: 'Dropbox に接続', attrs: { type: 'button' } });
-  const connectGoogleBtn = el('button', { class: 'btn', text: 'Google Drive に接続', attrs: { type: 'button' } });
+  const connectDropboxBtn = el('button', { class: 'btn', text: 'Dropbox と連携', attrs: { type: 'button' } });
+  const connectGoogleBtn = el('button', { class: 'btn', text: 'Google Drive と連携', attrs: { type: 'button' } });
   const connectNote = el('p', { class: 'muted', attrs: { hidden: '' } });
   const disconnectBtn = el('button', {
     class: 'btn btn-secondary',
-    text: '保存先から切断',
+    text: '連携を解除',
     attrs: { type: 'button', hidden: '' },
   });
   const showConnectError = (e: unknown): void => {
@@ -96,8 +96,11 @@ export function createSettingsView(ctx: UiContext): ViewController {
   root.append(app);
 
   function refreshInstall(): void {
+    installLine.hidden = false;
     if (ctx.install.isStandalone) {
-      installLine.textContent = 'インストール済みで起動しています。';
+      // インストール済み起動はユーザーに見せる必要がない（デバッグ寄り）ため行ごと隠す（Issue #33）。
+      installLine.textContent = '';
+      installLine.hidden = true;
       installBtn.hidden = true;
     } else if (ctx.install.canInstall()) {
       installLine.textContent = 'ホーム画面／アプリとしてインストールできます。';
@@ -119,8 +122,8 @@ export function createSettingsView(ctx: UiContext): ViewController {
       const provider = state.settings.connectedProvider;
       const connected = provider !== 'none';
       linkDesc.textContent = connected
-        ? `接続済み（${providerLabel(provider)}）。複数端末で同期されます。`
-        : '保存先に接続すると、複数端末で同期できます。';
+        ? `連携済み（${providerLabel(provider)}）。複数端末で利用できます。`
+        : '連携すると、複数端末で利用できます。';
       connectDropboxBtn.hidden = connected || !ctx.providers.dropbox;
       connectGoogleBtn.hidden = connected || !ctx.providers.gdrive;
       disconnectBtn.hidden = !connected;
