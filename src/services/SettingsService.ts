@@ -1,6 +1,6 @@
 import * as settingsStore from '../store/settingsStore';
 import * as tokenStore from '../store/tokenStore';
-import { getOrCreateDeviceId } from '../store/metaStore';
+import { getOrCreateDeviceId, setConflicts } from '../store/metaStore';
 import { DropboxAdapter } from '../adapters/DropboxAdapter';
 import { GoogleDriveAdapter } from '../adapters/GoogleDriveAdapter';
 import { requestGoogleAccessToken } from '../adapters/oauth/gis';
@@ -139,6 +139,7 @@ export async function disconnect(): Promise<DeviceSettings> {
   if (current.connectedProvider !== 'none') {
     await tokenStore.deleteToken(current.connectedProvider);
   }
+  await setConflicts([]); // 再連携時に古い競合が蘇らないようにクリアする（Issue #26）
   return updateSettings({ connectedProvider: 'none' });
 }
 

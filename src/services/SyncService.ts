@@ -5,7 +5,7 @@ import { syncOnce, MissingObjectError } from '../core';
 import * as todoStore from '../store/todoStore';
 import * as todoSvc from './TodoService';
 import type { TodoPatch } from './TodoService';
-import { setLastSyncAt } from '../store/metaStore';
+import { getConflicts, getLastSyncAt, setConflicts, setLastSyncAt } from '../store/metaStore';
 import {
   appendCommitIfChanged,
   loadLocalState,
@@ -48,6 +48,9 @@ export interface SyncService {
   // patch の組み立ては UI（ConflictMergeView.buildPatch）が担う。
   resolveConflict(todoId: Uuid, patch: TodoPatch): Promise<void>;
   reloadFromLocal(): Promise<Todo[]>;
+  // 永続化済みの未解決競合を IDB から復元する（起動時 / Issue #26）。
+  // 競合があればローカル todos から outcome を emit し、オフライン起動でも「解決する」を即復元する。
+  restoreConflicts(): Promise<void>;
 }
 
 // 全体ステータスのちらつき抑制（ch.09 §9.2）。開始から 400ms 超で初めて 'syncing'、点灯後は最低 500ms 維持。
@@ -106,6 +109,8 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
   // （次回同期は単一先端で conflicts=[] を返すため、union で既存を維持する）。
   // 検出・蓄積は Phase 2 から不変。解決は Phase 4 のフィールド単位 UI（resolveConflict）。
   let activeConflicts: FieldConflict[] = [];
+  // 競合は IDB に永続する（Issue #26）。同期周回の冒頭で一度だけ復元し、メモリの蓄積を上書きしない。
+  let conflictsLoaded = false;
 
   function buildOutcome(snap: Snapshot, lastSyncAt: number): SyncOutcome {
     const conflictIds = new Set(activeConflicts.map((c) => c.todoId));
@@ -116,6 +121,11 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
   }
 
   async function syncCycle(): Promise<void> {
+    // 永続済みの未解決競合を初回だけ取り込む（union より前）。restoreConflicts 未経由の経路でも復元する。
+    if (!conflictsLoaded) {
+      activeConflicts = await getConflicts();
+      conflictsLoaded = true;
+    }
     const local = await loadLocalState(deps.deviceId);
     const before = new Set(local.objects.keys());
     const todos = await todoStore.getAllTodos();
@@ -128,6 +138,7 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
     await todoStore.putTodos(Object.values(res.mergedSnapshot.todos));
 
     activeConflicts = unionConflicts(activeConflicts, res.conflicts);
+    await setConflicts(activeConflicts); // 未解決競合を永続（リロードで復元 / Issue #26）
     const lastSyncAt = Date.now();
     await setLastSyncAt(lastSyncAt);
     deps.onOutcome(buildOutcome(res.mergedSnapshot, lastSyncAt));
@@ -162,7 +173,20 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
     // マージコミット生成後は相手先端が祖先化して base となり、選択値は再競合せず収束する（§10.2）。
     if (Object.keys(patch).length > 0) await todoSvc.updateTodo(todoId, patch);
     activeConflicts = activeConflicts.filter((c) => c.todoId !== todoId);
+    await setConflicts(activeConflicts); // 解決済みを永続から除去（リロードで蘇らせない / Issue #26）
     await runOnce();
+  }
+
+  // 永続済みの未解決競合を復元する（起動時 / Issue #26）。先端は競合時も単一化されるため、
+  // メモリの activeConflicts を IDB から戻さないとリロードで「解決する」が消えて左の値が黙って確定する。
+  async function restoreConflicts(): Promise<void> {
+    activeConflicts = await getConflicts();
+    conflictsLoaded = true;
+    if (activeConflicts.length === 0) return;
+    // ローカル todos からそのまま outcome を組み、オフライン起動でも即「解決する」を復元する。
+    const snap = snapshotFromTodos(await todoStore.getAllTodos());
+    const lastSyncAt = (await getLastSyncAt()) ?? Date.now();
+    deps.onOutcome(buildOutcome(snap, lastSyncAt));
   }
 
   // 別タブの同期完了通知（broadcast）を受けた際の再読込。conflicts/status は据え置き、todos のみ返す。
@@ -171,5 +195,5 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
     return all.filter((t) => !t.deleted);
   }
 
-  return { runOnce, resolveConflict, reloadFromLocal };
+  return { runOnce, resolveConflict, reloadFromLocal, restoreConflicts };
 }
