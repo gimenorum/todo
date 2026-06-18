@@ -148,7 +148,7 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
     const h = el('div', { class: 'view-header' });
     h.append(
       el('a', { class: 'btn btn-secondary', text: '← 戻る', attrs: { href: '#/tasks' } }),
-      el('h2', { class: 'view-title', text: '同期の不具合を解決' }),
+      el('h2', { class: 'view-title', text: '同期エラーを解決' }),
     );
     return h;
   }
@@ -297,7 +297,8 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
     if (ch) ch.mode = mode;
   }
 
-  // 現在の選択から「編集後の内容」プレビュー要素を生成する（確認画面でのみ使用 / Issue #42）。
+  // 現在の選択からプレビュー要素を生成する（プレビュー画面でのみ使用 / Issue #42）。
+  // 画面側に「プレビュー」見出しを置くため、ここでは小見出しを持たず内容（dl）のみを返す。
   function buildPreview(): HTMLElement {
     const patch = buildPatch(formConflicts, choices, deletedDecision) as Record<string, unknown>;
     const dl = el('dl', { class: 'merge-preview-list' });
@@ -315,7 +316,7 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
       );
     }
     const preview = el('div', { class: 'merge-preview' });
-    preview.append(el('h3', { class: 'merge-preview-title', text: '編集後の内容' }), dl);
+    preview.append(dl);
     return preview;
   }
 
@@ -360,15 +361,15 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
       root.append(list);
     }
 
-    // プレビュー（「編集後の内容」）は編集画面には置かず、確定前の確認画面で表示する（Issue #42）。
+    // プレビューは編集画面には置かず、確定前のプレビュー画面で表示する（Issue #42）。
     const actions = el('div', { class: 'form-actions' });
-    const confirm = el('button', { class: 'btn', text: '編集を確定', attrs: { type: 'button' } });
+    const confirm = el('button', { class: 'btn', text: 'プレビュー', attrs: { type: 'button' } });
     confirm.addEventListener('click', () => showConfirm());
     actions.append(confirm);
     root.append(actions);
   }
 
-  // 確定前の確認画面（誤確定の防止＋プレビュー集約 / Issue #42）。編集画面の DOM は退避して
+  // 確定前のプレビュー画面（誤確定の防止＋内容の確認 / Issue #42）。編集画面の DOM は退避して
   // 「編集に戻る」で完全復元する（radio の checked・input の value は detached でも保持される / §10.5）。
   function showConfirm(): void {
     editingNodes = Array.from(root.childNodes);
@@ -396,7 +397,7 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
     actions.append(back, go);
 
     root.replaceChildren(
-      el('h2', { class: 'view-title', text: '確定の確認' }),
+      el('h2', { class: 'view-title', text: 'プレビュー' }),
       el('p', {
         class: 'merge-confirm-note',
         text:

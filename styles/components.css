@@ -337,11 +337,6 @@ textarea {
   border-radius: var(--radius);
   padding: 12px;
 }
-.merge-preview-title {
-  font-size: 13px;
-  color: var(--muted);
-  margin-bottom: 6px;
-}
 .merge-preview-list {
   display: grid;
   grid-template-columns: auto 1fr;
