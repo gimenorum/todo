@@ -26,9 +26,15 @@ interface StorageAdapter {
 ```
 objects/<hash>      … commit / snapshot を兼ねる（内容 SHA-256 / 不変）
 heads/<deviceId>    … advisory HEAD（端末ごと。list して先端を再導出できる）
+conflicts/<todoId>  … 未解決競合の共有マーカー（可変。FieldConflict[] の JSON / Issue #29）
 ```
 
 - `list('objects/')` で全オブジェクト、`list('heads/')` で各端末の HEAD ヒントを列挙。
+- **`conflicts/<todoId>`（Issue #29）**: 未解決競合は自動マージで先端が単一化されるため DAG から再導出できない
+  （[04 §4.5](./04-sync-engine.md)）。検出端末が当該 todo の `FieldConflict[]` を JSON で publish し、各端末は
+  毎同期で `list('conflicts/')` して読む＝**未解決集合の権威**。解決時に delete して全端末へ伝播する。書き込み・
+  読み取り・削除はすべて services 層（[`conflictMarkers`](../../src/services/conflictMarkers.ts)）が担い、core 同期
+  エンジンは無変更。`list('objects/')`・`list('heads/')` には現れない別 prefix なので既存の先端導出に影響しない。
 - 先端の正は常に**コミット集合からの再導出**（[04 §4.3](./04-sync-engine.md)）。`heads/` はヒント。
 - **孤立先端の整合**: `loadCommits` は `heads/` 起点で辿る（[04 §4.6](./04-sync-engine.md)）。`heads/` 未更新の孤立先端は作成端末の次回同期で再 publish されて回収される。即時の peer 回復が要る場合のみ `list('objects/')` を併用して `heads/` を純ヒント化する（list コスト増）。
 
