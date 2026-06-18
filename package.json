@@ -1,6 +1,6 @@
 {
   "name": "todo-pwa",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "private": true,
   "type": "module",
   "description": "ローカルファースト ＋ Bring Your Own Storage の TODO PWA",

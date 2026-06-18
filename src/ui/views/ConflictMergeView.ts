@@ -141,13 +141,14 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
   const choices = new Map<TodoField, FieldChoice>();
   let deletedDecision: DeletedDecision | null = null;
   let formConflicts: FieldConflict[] = [];
-  let previewEl: HTMLElement | null = null;
+  // 編集画面の DOM を一時退避する（確認画面 → 「編集に戻る」で選択を完全復元するため / Issue #42）。
+  let editingNodes: ChildNode[] | null = null;
 
   function header(): HTMLElement {
     const h = el('div', { class: 'view-header' });
     h.append(
       el('a', { class: 'btn btn-secondary', text: '← 戻る', attrs: { href: '#/tasks' } }),
-      el('h2', { class: 'view-title', text: '同期の不具合を解決' }),
+      el('h2', { class: 'view-title', text: '同期エラーを解決' }),
     );
     return h;
   }
@@ -254,7 +255,6 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
           ch.mode = 'edit';
           ch.editValue = readInput(input);
         }
-        renderPreview();
       };
       input.addEventListener('input', onEdit);
       input.addEventListener('change', onEdit);
@@ -284,11 +284,9 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
     del.append(delRadio, el('span', { text: '削除を適用' }));
     keepRadio.addEventListener('change', () => {
       deletedDecision = 'keep-edit';
-      renderPreview();
     });
     delRadio.addEventListener('change', () => {
       deletedDecision = 'apply-delete';
-      renderPreview();
     });
     wrap.append(keep, del);
     return wrap;
@@ -297,11 +295,11 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
   function setMode(field: TodoField, mode: EditMode): void {
     const ch = choices.get(field);
     if (ch) ch.mode = mode;
-    renderPreview();
   }
 
-  function renderPreview(): void {
-    if (!previewEl) return;
+  // 現在の選択からプレビュー要素を生成する（プレビュー画面でのみ使用 / Issue #42）。
+  // 画面側に「プレビュー」見出しを置くため、ここでは小見出しを持たず内容（dl）のみを返す。
+  function buildPreview(): HTMLElement {
     const patch = buildPatch(formConflicts, choices, deletedDecision) as Record<string, unknown>;
     const dl = el('dl', { class: 'merge-preview-list' });
     for (const c of formConflicts) {
@@ -317,10 +315,9 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
         el('dd', { text: deletedDecision === 'apply-delete' ? '削除を適用' : '編集版を残す' }),
       );
     }
-    previewEl.replaceChildren(
-      el('h3', { class: 'merge-preview-title', text: '編集後の内容' }),
-      dl,
-    );
+    const preview = el('div', { class: 'merge-preview' });
+    preview.append(dl);
+    return preview;
   }
 
   function buildForm(conflicts: FieldConflict[], state: State): void {
@@ -364,19 +361,52 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
       root.append(list);
     }
 
-    previewEl = el('div', { class: 'merge-preview' });
-    root.append(previewEl);
-    renderPreview();
-
+    // プレビューは編集画面には置かず、確定前のプレビュー画面で表示する（Issue #42）。
     const actions = el('div', { class: 'form-actions' });
-    const confirm = el('button', { class: 'btn', text: '編集を確定', attrs: { type: 'button' } });
-    confirm.addEventListener('click', () => {
+    const confirm = el('button', { class: 'btn', text: 'プレビュー', attrs: { type: 'button' } });
+    confirm.addEventListener('click', () => showConfirm());
+    actions.append(confirm);
+    root.append(actions);
+  }
+
+  // 確定前のプレビュー画面（誤確定の防止＋内容の確認 / Issue #42）。編集画面の DOM は退避して
+  // 「編集に戻る」で完全復元する（radio の checked・input の value は detached でも保持される / §10.5）。
+  function showConfirm(): void {
+    editingNodes = Array.from(root.childNodes);
+
+    const back = el('button', {
+      class: 'btn btn-secondary',
+      text: '← 編集に戻る',
+      attrs: { type: 'button' },
+    });
+    back.addEventListener('click', () => {
+      if (editingNodes) {
+        root.replaceChildren(...editingNodes);
+        editingNodes = null;
+      }
+    });
+
+    const go = el('button', { class: 'btn', text: '確定する', attrs: { type: 'button' } });
+    go.addEventListener('click', () => {
       resolving = true;
       const patch = buildPatch(formConflicts, choices, deletedDecision);
       void ctx.actions.resolveConflict(id, patch).then(() => ctx.navigate({ name: 'tasks' }));
     });
-    actions.append(confirm);
-    root.append(actions);
+
+    const actions = el('div', { class: 'form-actions' });
+    actions.append(back, go);
+
+    root.replaceChildren(
+      el('h2', { class: 'view-title', text: 'プレビュー' }),
+      el('p', {
+        class: 'merge-confirm-note',
+        text:
+          '両端末で同時に確定すると、再同期時に競合が再検出されることがあります。' +
+          'どちらか一方の端末で確定してください。',
+      }),
+      buildPreview(),
+      actions,
+    );
   }
 
   // 初期構築（TodoEditView 方式: 本体で 1 回だけ。update は原則フォームを触らない）。
