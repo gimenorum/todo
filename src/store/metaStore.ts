@@ -1,7 +1,7 @@
 import { getDb } from './db';
 import { STORE, META_KEY } from '../model/constants';
 import { newDeviceId } from '../model/ids';
-import type { DeviceId, Hash, Millis } from '../model/types';
+import type { DeviceId, FieldConflict, Hash, Millis } from '../model/types';
 
 // advisory HEAD・lastSyncAt・deviceId（ch.06）。Phase 0 は deviceId のみ、
 // Phase 2 で advisory HEAD（同期先端のヒント）と lastSyncAt を使う。
@@ -34,4 +34,16 @@ export async function getHead(): Promise<Hash | null> {
 export async function setHead(head: Hash): Promise<void> {
   const db = await getDb();
   await db.put(STORE.meta, head, META_KEY.head);
+}
+
+// 未解決の競合を IDB に永続する（Issue #26）。先端は競合時も単一化されるため、競合の「未解決」状態は
+// メモリだけだとリロードで失われる。FieldConflict は直列化可能なので meta に JSON 1 レコードで保持する。
+export async function getConflicts(): Promise<FieldConflict[]> {
+  const db = await getDb();
+  return ((await db.get(STORE.meta, META_KEY.conflicts)) as FieldConflict[] | undefined) ?? [];
+}
+
+export async function setConflicts(conflicts: FieldConflict[]): Promise<void> {
+  const db = await getDb();
+  await db.put(STORE.meta, conflicts, META_KEY.conflicts);
 }

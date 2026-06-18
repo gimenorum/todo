@@ -16,6 +16,7 @@ export const META_KEY = {
   deviceId: 'deviceId',
   lastSyncAt: 'lastSyncAt',
   head: 'head', // advisory HEAD のローカル保持（ch.04 §4.3 / Phase 2）
+  conflicts: 'conflicts', // 未解決の競合の永続（リロードで消えないように / Issue #26）
 } as const;
 
 // settings store 内の単一レコードキー。

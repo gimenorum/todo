@@ -51,8 +51,25 @@
 | Phase 2 | 検出と per-todo 表示＋ボタンまで。解決は暫定で「**こちら/相手を採用**」の二択（要件「実装フェーズ」）。edit vs delete は「**編集版を残す／削除を適用**」 |
 | Phase 4 | 本マージ画面に置換。フィールド単位の選択・直接編集・テキスト差分・プレビュー（要件「実装フェーズ」）。edit vs delete は二択（編集版を残す／削除を適用） |
 
-## 10.5 関連する不変条件
+## 10.5 未解決競合の永続と起動復元（Issue #26）
+
+競合を検出した端末でも先端は単一化される（自動マージで left を暫定保持し、マージコミットを publish する）。
+そのため「未解決」という状態をメモリ（`SyncService.activeConflicts`）だけに持つと、ページをリロードすると
+新しい `SyncService`（`activeConflicts=[]`）＋単一先端から競合なしと再導出され、「解決する」ボタンが消えて
+left の値が黙って確定してしまう（受け入れ基準「解決するまで黙って失われない」に反する）。
+
+これを防ぐため、**未解決競合だけを IndexedDB（`meta` ストア / `META_KEY.conflicts`）に永続する**。自動マージ
+（left を暫定表示）の挙動は変えず、状態の復元だけを足す。
+
+- **永続**: 同期周回で `activeConflicts` を union した直後と、`resolveConflict` で当該 todo を除外した直後に
+  `setConflicts(activeConflicts)`（[`metaStore`](../../src/store/metaStore.ts)）。`FieldConflict`（`{todoId,field,base,left,right}`）は直列化可能。
+- **復元**: 起動時（`syncRuntime.buildRuntime`）に `SyncService.restoreConflicts()` を初回同期より前に呼ぶ。
+  永続競合をロードして `activeConflicts` に戻し、空でなければローカル todos から outcome を emit する
+  （オフライン起動でも即「解決する」を復元）。同期周回の冒頭でも未ロードなら一度だけ取り込む（多重防御）。
+- **クリア**: 連携解除（`SettingsService.disconnect`）で `setConflicts([])`。再連携時に古い競合が蘇らない。
+
+## 10.6 関連する不変条件
 
 - 同一フィールド競合をこの画面で解決でき、確定でマージコミットになる（要件「実装フェーズ」）。
-- 解決するまでデータが黙って失われない（暫定でも left を保持 / 受け入れ基準）。
+- 解決するまでデータが黙って失われない（暫定でも left を保持し、未解決状態は IDB に永続して**リロードでも消えない** / 受け入れ基準・Issue #26）。
 - 競合表示は per-todo。一時的なネット/認証エラーは全体ステータス側（[09](./09-status.md)・要件「競合の表示と解決」）。

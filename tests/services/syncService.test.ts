@@ -112,6 +112,91 @@ describe('services/SyncService', () => {
     expect(last?.perTodoStatus['t1']).toBe('synced');
   });
 
+  it('競合は永続され、別インスタンスの restoreConflicts で復元される（リロード相当 / Issue #26）', async () => {
+    const remote = new InMemoryAdapter();
+    const clock = fixedClock();
+    const B = makeDevice('B', clock);
+    await B.commit((todos) => {
+      todos['t1'] = makeTodo({ id: 't1', title: 'base' });
+    });
+    await B.sync(remote);
+
+    const svc1 = createSyncService({
+      adapter: remote,
+      deviceId: 'A',
+      clock,
+      onOutcome: () => {},
+      onStatus: () => {},
+    });
+    await svc1.runOnce(); // A が base を pull
+
+    await B.commit((todos) => {
+      todos['t1'] = { ...todos['t1'], title: 'Y', version: 2 };
+    });
+    await B.sync(remote);
+
+    const cur = await todoStore.getTodo('t1');
+    await todoStore.putTodo({ ...cur!, title: 'X', version: 2 });
+    await svc1.runOnce(); // 競合検出 → IDB へ永続されるはず
+
+    // リロード相当：activeConflicts を持たない新インスタンスで restoreConflicts → 競合が戻る。
+    const restored: SyncOutcome[] = [];
+    const svc2 = createSyncService({
+      adapter: remote,
+      deviceId: 'A',
+      clock,
+      onOutcome: (o) => restored.push(o),
+      onStatus: () => {},
+    });
+    await svc2.restoreConflicts();
+
+    const last = restored.at(-1);
+    expect(last?.conflicts.some((c) => c.todoId === 't1' && c.field === 'title')).toBe(true);
+    expect(last?.perTodoStatus['t1']).toBe('conflict');
+  });
+
+  it('解決後は競合が永続から消え、restoreConflicts で蘇らない（Issue #26）', async () => {
+    const remote = new InMemoryAdapter();
+    const clock = fixedClock();
+    const B = makeDevice('B', clock);
+    await B.commit((todos) => {
+      todos['t1'] = makeTodo({ id: 't1', title: 'base' });
+    });
+    await B.sync(remote);
+
+    const svc1 = createSyncService({
+      adapter: remote,
+      deviceId: 'A',
+      clock,
+      onOutcome: () => {},
+      onStatus: () => {},
+    });
+    await svc1.runOnce();
+
+    await B.commit((todos) => {
+      todos['t1'] = { ...todos['t1'], title: 'Y', version: 2 };
+    });
+    await B.sync(remote);
+
+    const cur = await todoStore.getTodo('t1');
+    await todoStore.putTodo({ ...cur!, title: 'X', version: 2 });
+    await svc1.runOnce(); // 競合
+    await svc1.resolveConflict('t1', { title: 'Y' }); // 解決 → 永続も空に
+
+    const restored: SyncOutcome[] = [];
+    const svc2 = createSyncService({
+      adapter: remote,
+      deviceId: 'A',
+      clock,
+      onOutcome: (o) => restored.push(o),
+      onStatus: () => {},
+    });
+    await svc2.restoreConflicts();
+
+    // 競合は空なので outcome は emit されない（復元するものが無い）。
+    expect(restored).toEqual([]);
+  });
+
   it('相手先端の snapshot 未伝播でも「同期エラー」にせず idle（部分書き込みレース / hotfix 0.2.1）', async () => {
     const remote = new InMemoryAdapter();
     const clock = fixedClock();
