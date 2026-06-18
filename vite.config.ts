@@ -14,7 +14,8 @@ const APP_VERSION = (
 /**
  * 本番ビルド時のみ CSP を <meta http-equiv> として注入する（GitHub Pages はヘッダ不可 / ch.12・14）。
  * dev サーバは HMR がインライン/eval を使うため CSP を入れない。
- * Phase 0 はリモート保存先が無いため connect-src は 'self' のみ。Phase 2 で保存先 FQDN を追加する。
+ * Phase 2 で Dropbox の API FQDN を connect-src に追加（download/upload と RPC/token）。
+ * 認可ページ https://www.dropbox.com/oauth2/authorize はトップレベル遷移のため connect-src 対象外。
  */
 function injectCspMeta(): PluginOption {
   const csp = [
@@ -24,7 +25,7 @@ function injectCspMeta(): PluginOption {
     "img-src 'self' data:",
     "style-src 'self'",
     "script-src 'self'",
-    "connect-src 'self'",
+    "connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com",
     "manifest-src 'self'",
     "worker-src 'self'",
   ].join('; ');
@@ -72,5 +73,7 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['tests/**/*.test.ts'],
     globals: false,
+    // store 層テスト用に IndexedDB を polyfill（jsdom/node とも未実装 / ch.16）。
+    setupFiles: ['fake-indexeddb/auto'],
   },
 });

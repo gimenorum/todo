@@ -1,0 +1,104 @@
+# 2026-06-17 Phase 2 — Dropbox 連携＋実同期（feature/dropbox-sync → v0.2.0）
+
+## 日付
+2026-06-17
+
+## 依頼内容
+- 「phase2 に入りましょう。現在既に develop にマージコミットがありますが、これも今回 phase の対象とします」。
+- Phase 2 = `feature/dropbox-sync` / `v0.2.0`「Dropbox 連携＋実同期」を実装する（設計 05/06/09/10/11）。
+- develop に既にあるリリース自動化のマージコミットも v0.2.0 に同梱する。
+
+## 決定事項（着手時）
+- **App key（Dropbox OAuth クライアント ID）**: ビルド時 env `VITE_DROPBOX_APP_KEY`
+  （ローカル `.env.local` / 本番は GitHub Actions のリポジトリ変数）。PKCE public client なので秘密でない。
+  Dropbox アプリ発行とリダイレクト URI 登録（`window.location.origin` 基準）はユーザーが実施。
+- **デリバリ**: develop へ 3 つの増分 PR に分割（①ストレージ基盤 ②同期オーケストレーション ③UI）。
+  最後に `package.json` を 0.2.0 にして develop→main で `v0.2.0` リリース。
+- 実装方針: LocalState は services 層保持・`syncOnce` がミューテート／adapters は store/idb 非依存で
+  TokenProvider 注入／state 反映はコールバック経由の単一経路／ちらつき(400/500ms)は services／
+  DOM イベント購読は composition root／トークンは offline スコープで取得し 401 時 refresh、失敗で needs-reauth。
+- `core/` は無変更（Phase 1 の 6 シナリオを保全）。
+
+## 対応概要
+
+### PR1 — ストレージ基盤＋Dropbox アダプタ/OAuth
+- `src/model/types.ts`: `SyncProvider`・`StoredToken` を追加（OAuth トークンの型）。
+- `src/model/constants.ts`: `DB_VERSION` 1→2、`STORE.objects`/`STORE.tokens`、`META_KEY.head` を追加。
+- `src/store/db.ts`: IndexedDB スキーマに `objects`（key=hash, index kind）と `tokens`（key=provider）を追加。
+  `upgrade` は contains ガードで冪等（v1→v2 は追加のみ・既存ストア不変）。
+- `src/store/objectStore.ts`（新）: content-addressed blob 複製の CRUD（get/put/putObjects/getAllObjects/listObjectHashes）。
+- `src/store/tokenStore.ts`（新）: OAuth トークンの永続（get/put/deleteToken、同期しない）。
+- `src/store/metaStore.ts`: advisory HEAD の `getHead`/`setHead` を追加。
+- `src/adapters/oauth/pkce.ts`（新）: PKCE(S256) の純ロジック（verifier/state 生成・challenge・認可 URL 組立・
+  `redirectUri()` オリジン非依存・`parseCallback`）。
+- `src/adapters/oauth/tokenStore.ts`（新）: トークン交換/更新の fetch（`exchangeCodeForToken`/`refreshAccessToken`）と
+  `TokenProvider` IF（adapters は store/idb を import せず注入で受ける）。
+- `src/adapters/DropboxAdapter.ts`（新）: `StorageAdapter` 実装。upload/download/list_folder(+continue)/delete_v2 へ写像、
+  404/409→null・冪等、401→`onAuthError`＋throw。`putIfAbsent` は実装しない（CAS 非依存）。
+- テスト: 契約スイートを `tests/helpers/contract.ts` に共有化し InMemory＋Dropbox(モック fetch)で再利用
+  （`tests/helpers/dropboxMock.ts`）。`tests/adapters/{dropbox,oauth/pkce}.test.ts`、`tests/store/{db,objectStore,tokenStore}.test.ts`。
+  `fake-indexeddb` を devDep に追加し `vite.config.ts` の `setupFiles` に登録。
+- 検証: `npm run lint`／`typecheck`／`test`（85 件 green、Phase 1 の 6 シナリオ回帰なし）／`build` すべて green。
+
+### PR2 — 同期オーケストレーション
+- `src/services/syncLocalState.ts`（新）: core⇄IDB の橋渡し。`loadLocalState`／`persistLocalState`（差分 blob のみ書く）／
+  `snapshotFromTodos`／`appendCommitIfChanged`（materialized の変更を通常コミット化＝Device.commit のサービス版）。
+- `src/services/SyncService.ts`（新）: 1 回の同期（コミット→`syncOnce`→複製/HEAD 永続→materialize→`perTodoStatus`/`conflicts`/`lastSyncAt` 算出）。
+  結果は `onOutcome`/`onStatus` コールバックで返す（state 非依存＝単一経路）。ちらつき抑制 `createFlicker`（400ms 点灯遅延・最低 500ms 維持）、
+  暫定競合解決 `resolveConflictProvisional`（left/right・keep-edit/apply-delete）、`reloadFromLocal`。エラーは AuthError→needs-reauth／offline／error に分類。
+  競合フラグはセッション内で蓄積（Phase 2 暫定。データ＝left は常に保持。Phase 4 で本解決 UI に置換）。
+- `src/services/SyncScheduler.ts`（新）: 5 トリガ（編集後デバウンス 2 秒／間隔 pull／前面退避 flush／online 復帰＋バナー／手動）と
+  多重実行防止（`syncing`＋`pendingRerun`）。DOM イベント購読は composition root に委ね、フックのみ持つ（services は DOM 非依存）。
+- `src/state/broadcast.ts`（新）: BroadcastChannel ラッパ（'todo-sync'・通知のみ）。
+- `src/adapters/errors.ts`（新）＋ `DropboxAdapter`: 401 を `AuthError` で投げ、SyncService が needs-reauth に分類できるように。
+- `src/model/constants.ts`: `PUSH_DEBOUNCE_MS=2000`／`SYNCING_SHOW_DELAY_MS=400`／`SYNCING_MIN_VISIBLE_MS=500` を追加。
+- テスト: flicker（fake timers で 400/500ms 境界）／SyncService（InMemory＋Device ハーネスで push/pull/競合検出/暫定解決/エラー分類）／
+  SyncScheduler（デバウンス・interval・dedup）／broadcast（スタブ配信）。全 95 件 green・Phase 1 回帰なし。
+
+### PR3 — UI ＋ composition root ＋ CSP ＋ 設計書反映 ＋ v0.2.0 化
+- `src/services/SettingsService.ts`: Dropbox OAuth（`connectDropbox`／`completeOAuthRedirect`／`disconnect`）と
+  `buildAdapter`（TokenProvider 注入・失効間際 refresh）、`isOAuthCallback`。App key は `import.meta.env.VITE_DROPBOX_APP_KEY`。
+- `src/syncRuntime.ts`（新・composition glue）: SyncService/Scheduler/Broadcast のライフサイクルと store 反映
+  （onOutcome/onStatus→setState）、`startup`（OAuth コールバック→runtime 構築→初回同期）、online バナー、teardown。
+- `src/state/actions.ts`: `SyncBridge` IF と connect/disconnect/syncNow/resolveConflict を追加、CRUD 後に notifyEdited、
+  設定変更で applyIntervalChange。`src/state/selectors.ts`: tasksBadge/settingsBadge/perTodoStatusOf。
+- `src/model/types.ts`: State に `banner` を追加。`src/ui/format.ts`: `formatTime`。
+- UI: StatusIndicator（ヘッダ全体ステータス）／Badge（ナビバッジ）／AppShell（マウント・バッジ・バナー・merge ルート実画面化）／
+  SettingsView（接続・切断・同期設定フォーム・今すぐ同期）／TaskListView（per-todo ステータス＋解決ボタン）／
+  ConflictMergeView（暫定二択）。`index.html` テンプレートに todo-sync-badge/todo-resolve。styles 追加。
+- `src/main.ts`: runtime/actions 結線、visibilitychange/online 購読、`startup` 呼び出し。
+- `vite.config.ts`: CSP `connect-src` に Dropbox FQDN。`src/vite-env.d.ts`: `VITE_DROPBOX_APP_KEY` 型。
+- 設計書: 05/06/09/10/11/12/16 を実装済へ、18 #3（App key=env var）・#5（Dropbox FQDN）を確定、16 に手動 E2E チェックリスト。
+- `package.json`: version **0.2.0**。
+- 検証: lint/typecheck/test（**103 件 green**）/build（51 modules・CSP に Dropbox・`__APP_VERSION__`=0.2.0）すべて green。
+
+## 成果物（PR1）
+- 変更: `src/model/types.ts`, `src/model/constants.ts`, `src/store/db.ts`, `src/store/metaStore.ts`,
+  `tests/adapters/contract.test.ts`, `vite.config.ts`, `package.json`, `package-lock.json`
+- 新規: `src/store/objectStore.ts`, `src/store/tokenStore.ts`,
+  `src/adapters/DropboxAdapter.ts`, `src/adapters/oauth/pkce.ts`, `src/adapters/oauth/tokenStore.ts`,
+  `tests/helpers/contract.ts`, `tests/helpers/dropboxMock.ts`,
+  `tests/adapters/dropbox.test.ts`, `tests/adapters/oauth/pkce.test.ts`,
+  `tests/store/db.test.ts`, `tests/store/objectStore.test.ts`, `tests/store/tokenStore.test.ts`
+- 証跡: `docs/history/2026-06-17-phase2-dropbox-sync.md`（本ファイル）
+
+## 成果物（PR2）
+- 新規: `src/services/syncLocalState.ts`, `src/services/SyncService.ts`, `src/services/SyncScheduler.ts`,
+  `src/state/broadcast.ts`, `src/adapters/errors.ts`,
+  `tests/services/flicker.test.ts`, `tests/services/syncService.test.ts`, `tests/services/syncScheduler.test.ts`,
+  `tests/state/broadcast.test.ts`
+- 変更: `src/model/constants.ts`, `src/adapters/DropboxAdapter.ts`
+- 証跡: `docs/history/2026-06-17-phase2-dropbox-sync.md`（PR2 追記）
+
+## 成果物（PR3）
+- 新規: `src/syncRuntime.ts`, `src/ui/layout/StatusIndicator.ts`, `src/ui/layout/Badge.ts`,
+  `src/ui/views/ConflictMergeView.ts`, `tests/services/settingsService.test.ts`
+- 変更: `src/services/SettingsService.ts`, `src/state/actions.ts`, `src/state/selectors.ts`,
+  `src/model/types.ts`, `src/ui/format.ts`, `src/ui/layout/AppShell.ts`, `src/ui/views/SettingsView.ts`,
+  `src/ui/views/TaskListView.ts`, `src/main.ts`, `src/vite-env.d.ts`, `index.html`, `vite.config.ts`,
+  `styles/layout.css`, `styles/components.css`, `package.json`,
+  `tests/state/selectors.test.ts`, `tests/state/store.test.ts`,
+  `docs/design/05-storage-adapter.md`, `docs/design/06-local-store.md`, `docs/design/09-status.md`,
+  `docs/design/10-conflict-ui.md`, `docs/design/11-sync-triggers.md`, `docs/design/12-pwa-sw-csp.md`,
+  `docs/design/16-testing.md`, `docs/design/18-open-questions.md`
+- 証跡: `docs/history/2026-06-17-phase2-dropbox-sync.md`（PR3 追記）

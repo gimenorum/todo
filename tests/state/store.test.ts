@@ -11,6 +11,7 @@ function baseState(): State {
     lastSyncAt: null,
     perTodoStatus: {},
     conflicts: [],
+    banner: null,
     route: { name: 'tasks' },
   };
 }
