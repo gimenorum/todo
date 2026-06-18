@@ -105,8 +105,8 @@ describe('services/SyncService', () => {
     expect(last?.conflicts.some((c) => c.todoId === 't1' && c.field === 'title')).toBe(true);
     expect(last?.perTodoStatus['t1']).toBe('conflict');
 
-    // 暫定解決（相手を採用）→ 競合が消える
-    await svc.resolveConflictProvisional('t1', 'right');
+    // 解決（相手の値 title=Y を採用する patch）→ 競合が消える
+    await svc.resolveConflict('t1', { title: 'Y' });
     last = outcomes.at(-1);
     expect(last?.conflicts).toEqual([]);
     expect(last?.perTodoStatus['t1']).toBe('synced');
