@@ -21,8 +21,8 @@
 | # | 項目 | 影響箇所 | 状態 |
 |---|---|---|---|
 | 3 | Dropbox OAuth クライアント ID（public） | `DropboxAdapter` | **決定（2026-06-17）: ビルド時 env `VITE_DROPBOX_APP_KEY`** で供給（Phase 2 実装済）。Dropbox アプリ発行＋リダイレクト URI 登録はユーザーが実施 |
-| 4 | Google OAuth クライアント ID | `GoogleDriveAdapter` | 未発行。**Phase 3 までにユーザーが発行＋リダイレクト URI 登録** |
-| 5 | CSP の保存先 FQDN 列挙 | `index.html` `<meta>` | **Dropbox 確定（2026-06-17）: `connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com`**（Phase 2 実装済）。Google は Phase 3（[12](./12-pwa-sw-csp.md)） |
+| 4 | Google OAuth クライアント ID | `GoogleDriveAdapter` | **決定（2026-06-18）: ビルド時 env `VITE_GOOGLE_CLIENT_ID`** で供給（GIS トークンモデル / public client・秘密なし）。ユーザーは「ウェブ アプリケーション」クライアントを発行し **承認済み JavaScript 生成元**を登録（リダイレクト URI 不要）。手順=`docs/setup-google-drive.md`（[05 §5.5](./05-storage-adapter.md)） |
+| 5 | CSP の保存先 FQDN 列挙 | `index.html` `<meta>` | **確定（2026-06-18）: Dropbox＝`connect-src api/content.dropboxapi.com`、Google＝`script-src accounts.google.com/gsi/client`・`connect-src www.googleapis.com accounts.google.com`・`frame-src accounts.google.com`**（Phase 2/3 実装済 / [12](./12-pwa-sw-csp.md)） |
 | 10 | アイコン一式・テーマカラー | manifest（[12](./12-pwa-sw-csp.md)） | **要用意** |
 | 11 | 言語リスト | i18n（[08](./08-routing-views.md) 設定） | 後回し（要件「設定画面」・Phase 6） |
 | 12 | `skipWaiting`/`clients.claim` の採否 | `sw/sw.ts`（[12](./12-pwa-sw-csp.md)） | 既定は安全側（次回起動で切替）。実装時確定 |

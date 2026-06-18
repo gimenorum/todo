@@ -12,7 +12,8 @@ import * as settingsSvc from '../services/SettingsService';
 export interface SyncBridge {
   notifyEdited(): void; // 編集後の push をスケジュール（未連携なら no-op）
   syncNow(): Promise<void>;
-  connect(): Promise<void>;
+  connectDropbox(): Promise<void>;
+  connectGoogle(): Promise<void>;
   disconnect(): Promise<void>;
   resolveConflict(id: Uuid, choice: ConflictChoice): Promise<void>;
   reloadFromLocal(): Promise<void>;
@@ -25,7 +26,8 @@ export interface Actions {
   toggleDone(id: Uuid, done: boolean): Promise<void>;
   deleteTodo(id: Uuid): Promise<void>;
   changeSettings(patch: Partial<DeviceSettings>): Promise<void>;
-  connect(): Promise<void>;
+  connectDropbox(): Promise<void>;
+  connectGoogle(): Promise<void>;
   disconnect(): Promise<void>;
   syncNow(): Promise<void>;
   resolveConflict(id: Uuid, choice: ConflictChoice): Promise<void>;
@@ -70,8 +72,12 @@ export function createActions(store: Store, bridge: SyncBridge): Actions {
       bridge.applyIntervalChange();
     },
 
-    async connect() {
-      await bridge.connect();
+    async connectDropbox() {
+      await bridge.connectDropbox();
+    },
+
+    async connectGoogle() {
+      await bridge.connectGoogle();
     },
 
     async disconnect() {

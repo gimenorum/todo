@@ -40,4 +40,20 @@ describe('services/SettingsService（連携）', () => {
   it('App key 未設定では connectDropbox がエラーになる', async () => {
     await expect(settingsSvc.connectDropbox()).rejects.toThrow(/VITE_DROPBOX_APP_KEY/);
   });
+
+  it('connectedProvider=gdrive ＋トークンで buildAdapter を返し、disconnect で破棄される', async () => {
+    await settingsSvc.updateSettings({ connectedProvider: 'gdrive' });
+    await tokenStore.putToken('gdrive', { accessToken: 'G', expiresAt: Date.now() + 3_600_000 });
+    expect(await settingsSvc.buildAdapter()).not.toBeNull();
+
+    const next = await settingsSvc.disconnect();
+    expect(next.connectedProvider).toBe('none');
+    expect(await tokenStore.getToken('gdrive')).toBeNull();
+    expect(await settingsSvc.buildAdapter()).toBeNull();
+  });
+
+  it('Client ID 未設定では isGoogleConfigured=false・connectGoogle はエラー', async () => {
+    expect(settingsSvc.isGoogleConfigured()).toBe(false);
+    await expect(settingsSvc.connectGoogle()).rejects.toThrow(/VITE_GOOGLE_CLIENT_ID/);
+  });
 });

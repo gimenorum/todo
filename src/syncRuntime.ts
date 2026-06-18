@@ -97,8 +97,18 @@ export function createSyncRuntime(store: Store): SyncRuntime {
       }
     },
 
-    async connect() {
+    async connectDropbox() {
       await settingsSvc.connectDropbox(); // 認可ページへ遷移（戻りは startup で処理）
+    },
+
+    async connectGoogle() {
+      // GIS はポップアップで in-page 完結するため、ここで設定反映＋ランタイム構築＋初回同期まで行う
+      //（Dropbox のようなリダイレクト startup 経路を通らない / ch.05 §5.5）。
+      await settingsSvc.connectGoogle();
+      store.setState({ settings: await settingsSvc.loadSettings() });
+      const ok = await buildRuntime();
+      if (ok) void scheduler?.syncNow();
+      else store.setState({ global: 'needs-reauth' });
     },
 
     async disconnect() {

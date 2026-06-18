@@ -1,7 +1,7 @@
 # 12. PWA / Service Worker / CSP / マニフェスト
 
 > 要件トレース: requirements.md「技術スタック」「対応プラットフォームと制約」「デプロイ / ホスティング」「セキュリティ」
-> 状態: 実装済（Phase 0 ／ Phase 2：CSP に Dropbox FQDN 追加） ／ 実装フェーズ: 0→2
+> 状態: 実装済（Phase 0 ／ Phase 2：CSP に Dropbox FQDN ／ Phase 3：Google FQDN・GIS） ／ 実装フェーズ: 0→2→3
 
 ## 12.1 Service Worker（手書き・依存なし）
 
@@ -29,19 +29,20 @@
 
 GitHub Pages はレスポンスヘッダを設定できないため、CSP は `index.html` の `<meta http-equiv="Content-Security-Policy">` で指定する（要件「デプロイ / ホスティング」）。本実装では**本番ビルド時のみ** Vite プラグインで `<meta charset>` の直後（後続リソース読み込みに効く位置）へ注入する。dev は HMR がインライン/eval を使うため注入しない（`vite.config.ts`）。
 
-方針（**オリジン非依存**＝決定 #1）。アプリ自身のオリジンは `'self'` で吸収するため、本番オリジンを CSP にハードコードしない。保存先（Dropbox/Google）の固定 FQDN だけを列挙する（Dropbox は確定済み＝下表。Google は Phase 3 / [18](./18-open-questions.md) #5）。
+方針（**オリジン非依存**＝決定 #1）。アプリ自身のオリジンは `'self'` で吸収するため、本番オリジンを CSP にハードコードしない。保存先（Dropbox/Google）の固定 FQDN だけを列挙する（Dropbox／Google とも確定済み＝下表。Google は GIS トークンモデルのため `script-src`／`frame-src` も追加 / [05 §5.5](./05-storage-adapter.md)・[18](./18-open-questions.md) #5）。
 
 | ディレクティブ | 値（方針） |
 |---|---|
 | `default-src` | `'self'` |
-| `script-src` | `'self'`（インライン不可＝nonce 不要設計） |
+| `script-src` | `'self' https://accounts.google.com/gsi/client`（GIS クライアントの読込のみ許可。インライン不可＝nonce 不要設計） |
 | `style-src` | `'self'`（必要なら `'unsafe-inline'` を最小限） |
 | `img-src` | `'self' data:` |
-| `connect-src` | `'self' https://api.dropboxapi.com https://content.dropboxapi.com`（Dropbox：download/upload と RPC/token。認可ページ `www.dropbox.com` はトップレベル遷移ゆえ対象外。Google は Phase 3） |
+| `connect-src` | `'self' https://api.dropboxapi.com https://content.dropboxapi.com https://www.googleapis.com https://accounts.google.com`（Dropbox：download/upload と RPC/token。Google：Drive API＝`www.googleapis.com`、GIS＝`accounts.google.com`。認可ページ/ポップアップはトップレベル遷移ゆえ対象外） |
 | `object-src` | `'none'` |
 | `base-uri` | `'self'` |
 | `manifest-src` | `'self'` |
 | `worker-src` | `'self'`（手書き SW の登録元） |
+| `frame-src` | `'self' https://accounts.google.com`（GIS の無音トークン取得 iframe。Phase 3） |
 
 ## 12.4 オフライン / インストール
 
