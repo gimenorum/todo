@@ -51,25 +51,49 @@
 | Phase 2 | 検出と per-todo 表示＋ボタンまで。解決は暫定で「**こちら/相手を採用**」の二択（要件「実装フェーズ」）。edit vs delete は「**編集版を残す／削除を適用**」 |
 | Phase 4 | 本マージ画面に置換。フィールド単位の選択・直接編集・テキスト差分・プレビュー（要件「実装フェーズ」）。edit vs delete は二択（編集版を残す／削除を適用） |
 
-## 10.5 未解決競合の永続と起動復元（Issue #26）
+## 10.5 未解決競合の端末間共有・永続・起動復元（Issue #29 / #26）
 
 競合を検出した端末でも先端は単一化される（自動マージで left を暫定保持し、マージコミットを publish する）。
-そのため「未解決」という状態をメモリ（`SyncService.activeConflicts`）だけに持つと、ページをリロードすると
-新しい `SyncService`（`activeConflicts=[]`）＋単一先端から競合なしと再導出され、「解決する」ボタンが消えて
-left の値が黙って確定してしまう（受け入れ基準「解決するまで黙って失われない」に反する）。
+そのため「未解決」という状態は **DAG（コミット履歴）から再導出できない**（「left を暫定表示中（未解決）」と
+「left を選んで解決済み」が履歴上区別不能）。この状態は明示的に保持・共有する必要がある。
 
-これを防ぐため、**未解決競合だけを IndexedDB（`meta` ストア / `META_KEY.conflicts`）に永続する**。自動マージ
-（left を暫定表示）の挙動は変えず、状態の復元だけを足す。
+### 共有マーカー（Issue #29＝競合が他端末に同期されない）
 
-- **永続**: 同期周回で `activeConflicts` を union した直後と、`resolveConflict` で当該 todo を除外した直後に
+未解決競合を検出端末のメモリ／ローカル IDB だけに持つと、**もう一方の端末には競合が伝わらず**「解決する」が
+出ない（Issue #29）。これを解決するため、未解決競合を**リモートの小さな keyspace `conflicts/<todoId>` で端末間
+共有**する（[05 §5.2](./05-storage-adapter.md)）。中核の収束ロジック（`merge3`／heads 導出／自動マージ）は
+一切変更せず、マーカーの読み書き削除はすべて services 層（[`conflictMarkers`](../../src/services/conflictMarkers.ts)・
+`SyncService`）に置く。
+
+- **publish（検出端末）**: 同期周回で `syncOnce` が返した `res.conflicts` を `writeMarkers` で
+  `conflicts/<todoId>` に JSON 保存。
+- **読み取り（全端末）**: 毎同期で `readAllMarkers`（`list('conflicts/')`→get→parse→flatten）し、これを
+  `activeConflicts` の**権威**とする（検出端末も相手端末も同じ集合を見る）。
+- **delete（解決端末）**: `resolveConflict` で削除意図を**保留集合 `pendingConflictDeletes`（IDB 永続）**に積み、
+  同期周回で `deleteMarker` を実行する。**リモートから消えたことを確認できた（throw しない）todoId だけ集合から外す**
+  ＝オフライン/transient では残して**確実に同期できるまで毎同期リトライ**する（成功を仮定しない）。
+- 周回内の順序は **①保留削除（確認付き）→②検出分 publish→③共有集合を読む**。削除を先に行うので、別値での
+  再解決による**再衝突**でも新しいマーカーが正しく書き直る。
+
+> 効果: 相手端末でもボタンが出る／保留中に別項目を編集してもマーカーが sticky に残る／どちらの端末で解決しても
+> 両端末でボタンが消える。**両端末が別値に解決**した場合は各解決コミットが分岐し、再同期時に `merge3` が新たな競合
+> として再検出する（データは失われず再合意を促す＝正しい挙動。有限ラウンドで収束）。
+
+### IDB 永続とリロード復元（Issue #26）
+
+権威はリモート `conflicts/` だが、**オフライン起動でも「解決する」を即復元**するため未解決競合を IndexedDB
+（`meta` ストア / `META_KEY.conflicts`）にも**キャッシュ**する。自動マージ（left を暫定表示）の挙動は変えない。
+
+- **永続**: 同期周回で `readAllMarkers` 直後と、`resolveConflict` で当該 todo を除外した直後に
   `setConflicts(activeConflicts)`（[`metaStore`](../../src/store/metaStore.ts)）。`FieldConflict`（`{todoId,field,base,left,right}`）は直列化可能。
 - **復元**: 起動時（`syncRuntime.buildRuntime`）に `SyncService.restoreConflicts()` を初回同期より前に呼ぶ。
-  永続競合をロードして `activeConflicts` に戻し、空でなければローカル todos から outcome を emit する
-  （オフライン起動でも即「解決する」を復元）。同期周回の冒頭でも未ロードなら一度だけ取り込む（多重防御）。
+  IDB キャッシュをロードして `activeConflicts` に戻し、空でなければローカル todos から outcome を emit する
+  （オフライン起動でも即「解決する」を復元）。最初の `runOnce` の `readAllMarkers` で共有集合に上書きされる。
 - **クリア**: 連携解除（`SettingsService.disconnect`）で `setConflicts([])`。再連携時に古い競合が蘇らない。
 
 ## 10.6 関連する不変条件
 
 - 同一フィールド競合をこの画面で解決でき、確定でマージコミットになる（要件「実装フェーズ」）。
-- 解決するまでデータが黙って失われない（暫定でも left を保持し、未解決状態は IDB に永続して**リロードでも消えない** / 受け入れ基準・Issue #26）。
+- 解決するまでデータが黙って失われない（暫定でも left を保持し、未解決状態はリモート `conflicts/` で共有＋IDB に
+  キャッシュして**リロードでも他端末でも消えない** / 受け入れ基準・Issue #29 / #26）。
 - 競合表示は per-todo。一時的なネット/認証エラーは全体ステータス側（[09](./09-status.md)・要件「競合の表示と解決」）。

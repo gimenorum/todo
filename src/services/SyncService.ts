@@ -5,7 +5,15 @@ import { syncOnce, MissingObjectError } from '../core';
 import * as todoStore from '../store/todoStore';
 import * as todoSvc from './TodoService';
 import type { TodoPatch } from './TodoService';
-import { getConflicts, getLastSyncAt, setConflicts, setLastSyncAt } from '../store/metaStore';
+import {
+  getConflicts,
+  getLastSyncAt,
+  getPendingConflictDeletes,
+  setConflicts,
+  setLastSyncAt,
+  setPendingConflictDeletes,
+} from '../store/metaStore';
+import { deleteMarker, readAllMarkers, writeMarkers } from './conflictMarkers';
 import {
   appendCommitIfChanged,
   loadLocalState,
@@ -89,14 +97,6 @@ export function createFlicker(onStatus: (s: GlobalSyncStatus) => void): Flicker 
   };
 }
 
-function unionConflicts(a: FieldConflict[], b: FieldConflict[]): FieldConflict[] {
-  const key = (c: FieldConflict): string => `${c.todoId} ${c.field}`;
-  const map = new Map<string, FieldConflict>();
-  for (const c of a) map.set(key(c), c);
-  for (const c of b) if (!map.has(key(c))) map.set(key(c), c);
-  return Array.from(map.values());
-}
-
 function classifyError(err: unknown): GlobalSyncStatus {
   if (err instanceof AuthError) return 'needs-reauth';
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
@@ -105,12 +105,20 @@ function classifyError(err: unknown): GlobalSyncStatus {
 
 export function createSyncService(deps: SyncServiceDeps): SyncService {
   const flicker = createFlicker(deps.onStatus);
-  // 競合フラグはセッション内で蓄積する。マージを行った端末が検出し、解決まで保持する
-  // （次回同期は単一先端で conflicts=[] を返すため、union で既存を維持する）。
-  // 検出・蓄積は Phase 2 から不変。解決は Phase 4 のフィールド単位 UI（resolveConflict）。
+  // 未解決競合の集合。権威はリモートの共有マーカー（conflicts/<todoId> / Issue #29）で、毎同期で
+  // readAllMarkers により上書きされる。IDB(meta) はオフライン再表示用のキャッシュに格下げ（Issue #26）。
   let activeConflicts: FieldConflict[] = [];
-  // 競合は IDB に永続する（Issue #26）。同期周回の冒頭で一度だけ復元し、メモリの蓄積を上書きしない。
-  let conflictsLoaded = false;
+  // 解決済みだがリモートのマーカー削除をまだ確認できていない todoId 集合（確認付きリトライ / Issue #29）。
+  // IDB(meta) に永続し、毎同期で deleteMarker を再送して「確実に同期できた」ものだけ外す。
+  let pendingDeletes: Uuid[] = [];
+  let pendingLoaded = false;
+
+  // 保留削除集合を初回だけ IDB から取り込む（多重ロードを避ける）。
+  async function ensurePendingLoaded(): Promise<void> {
+    if (pendingLoaded) return;
+    pendingDeletes = await getPendingConflictDeletes();
+    pendingLoaded = true;
+  }
 
   function buildOutcome(snap: Snapshot, lastSyncAt: number): SyncOutcome {
     const conflictIds = new Set(activeConflicts.map((c) => c.todoId));
@@ -121,11 +129,7 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
   }
 
   async function syncCycle(): Promise<void> {
-    // 永続済みの未解決競合を初回だけ取り込む（union より前）。restoreConflicts 未経由の経路でも復元する。
-    if (!conflictsLoaded) {
-      activeConflicts = await getConflicts();
-      conflictsLoaded = true;
-    }
+    await ensurePendingLoaded();
     const local = await loadLocalState(deps.deviceId);
     const before = new Set(local.objects.keys());
     const todos = await todoStore.getAllTodos();
@@ -137,8 +141,27 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
     // materialize: マージ結果を todos ストアへ（tombstone 含む）。表示の正はローカル todos。
     await todoStore.putTodos(Object.values(res.mergedSnapshot.todos));
 
-    activeConflicts = unionConflicts(activeConflicts, res.conflicts);
-    await setConflicts(activeConflicts); // 未解決競合を永続（リロードで復元 / Issue #26）
+    // --- 共有マーカーの同期（Issue #29）。順序が重要 ---
+    // 1) 保留削除を確認付きで再送。リモートに到達して成功（throw しない）todoId だけ集合から外す。
+    //    失敗（オフライン/transient）は残し、次回同期で再試行＝確実に同期できるまでリトライ。
+    if (pendingDeletes.length > 0) {
+      const stillPending: Uuid[] = [];
+      for (const todoId of pendingDeletes) {
+        try {
+          await deleteMarker(deps.adapter, todoId);
+        } catch {
+          stillPending.push(todoId);
+        }
+      }
+      pendingDeletes = stillPending;
+      await setPendingConflictDeletes(pendingDeletes);
+    }
+    // 2) 今回検出した競合を publish（削除を先に行うので、再衝突でも新しいマーカーが正しく書き直る）。
+    if (res.conflicts.length > 0) await writeMarkers(deps.adapter, res.conflicts);
+    // 3) 共有集合を読み、未解決競合の権威とする（検出端末も相手端末も同じ集合を見る）。
+    activeConflicts = await readAllMarkers(deps.adapter);
+    await setConflicts(activeConflicts); // オフライン再表示用の IDB キャッシュ（権威はリモート）
+
     const lastSyncAt = Date.now();
     await setLastSyncAt(lastSyncAt);
     deps.onOutcome(buildOutcome(res.mergedSnapshot, lastSyncAt));
@@ -169,19 +192,24 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
 
   async function resolveConflict(todoId: Uuid, patch: TodoPatch): Promise<void> {
     // patch は UI（ConflictMergeView.buildPatch）が組んだ「フィールド単位の解決値」。
-    // 適用→競合集合から除外→runOnce で解決コミットを push（runOnce 内で emit）。
-    // マージコミット生成後は相手先端が祖先化して base となり、選択値は再競合せず収束する（§10.2）。
+    // 適用→競合集合から除外（即時 UI 反映）→マーカー削除意図を保留集合に積む→runOnce で解決コミットを
+    // push しつつ確認付きでマーカーを削除する（runOnce 内で emit）。リモートのマーカー削除は成功を仮定せず
+    // syncCycle の確認付きリトライ経路に一本化する（Issue #29）。マージコミット生成後は相手先端が祖先化して
+    // base となり、選択値は再競合せず収束する（§10.2）。
     if (Object.keys(patch).length > 0) await todoSvc.updateTodo(todoId, patch);
     activeConflicts = activeConflicts.filter((c) => c.todoId !== todoId);
-    await setConflicts(activeConflicts); // 解決済みを永続から除去（リロードで蘇らせない / Issue #26）
+    await setConflicts(activeConflicts); // 解決済みを IDB キャッシュから除去（リロードで蘇らせない / Issue #26）
+    await ensurePendingLoaded();
+    if (!pendingDeletes.includes(todoId)) pendingDeletes.push(todoId);
+    await setPendingConflictDeletes(pendingDeletes); // 削除意図を永続（オフライン/再起動でも再送される）
     await runOnce();
   }
 
   // 永続済みの未解決競合を復元する（起動時 / Issue #26）。先端は競合時も単一化されるため、
   // メモリの activeConflicts を IDB から戻さないとリロードで「解決する」が消えて左の値が黙って確定する。
+  // 起動直後は IDB キャッシュから復元し、最初の runOnce の readAllMarkers で共有集合に上書きされる（Issue #29）。
   async function restoreConflicts(): Promise<void> {
     activeConflicts = await getConflicts();
-    conflictsLoaded = true;
     if (activeConflicts.length === 0) return;
     // ローカル todos からそのまま outcome を組み、オフライン起動でも即「解決する」を復元する。
     const snap = snapshotFromTodos(await todoStore.getAllTodos());

@@ -17,6 +17,8 @@ export const META_KEY = {
   lastSyncAt: 'lastSyncAt',
   head: 'head', // advisory HEAD のローカル保持（ch.04 §4.3 / Phase 2）
   conflicts: 'conflicts', // 未解決の競合の永続（リロードで消えないように / Issue #26）
+  // 解決済みだがリモートのマーカー削除がまだ確認できていない todoId 集合（確認付きリトライ / Issue #29）。
+  pendingConflictDeletes: 'pendingConflictDeletes',
 } as const;
 
 // settings store 内の単一レコードキー。
