@@ -42,6 +42,10 @@ interface ListResult {
 export class DropboxAdapter implements StorageAdapter {
   private readonly tokens: TokenProvider;
   private readonly onAuthError: (() => void) | undefined;
+  // このセッションで「サーバに在る」と確認済みの objects/* キー（Issue #27）。objects/* は内容アドレス
+  // 指定＝不変なので、既知のものは再アップロードを省ける。pull の get と最初の put で自然に育ち、
+  // 2 回目以降の同期は既存 object を 0 アップロードでスキップする（事前 list は使わない）。
+  private readonly knownObjects = new Set<string>();
 
   constructor(opts: DropboxAdapterOptions) {
     this.tokens = opts.tokens;
@@ -143,10 +147,13 @@ export class DropboxAdapter implements StorageAdapter {
     if (res.status === 409) return null; // path/not_found
     this.checkAuth(res.status);
     if (!res.ok) return this.fail(res, 'download');
+    if (key.startsWith('objects/')) this.knownObjects.add(key); // サーバに在ると確認（Issue #27）
     return new Uint8Array(await res.arrayBuffer());
   }
 
   async put(key: string, bytes: Uint8Array): Promise<void> {
+    // 既知の objects/*（不変）は再アップロードしない（Issue #27）。heads/* は可変なので常にアップロード。
+    if (key.startsWith('objects/') && this.knownObjects.has(key)) return;
     // upload は Content-Type に cors-hack（text/plain＝安全リスト・preflight 不要・Dropbox は octet-stream
     // 相当として受理）。application/octet-stream は preflight を誘発するため使わない。
     const res = await this.contentFetch(
@@ -160,6 +167,7 @@ export class DropboxAdapter implements StorageAdapter {
     );
     this.checkAuth(res.status);
     if (!res.ok) return this.fail(res, 'upload');
+    if (key.startsWith('objects/')) this.knownObjects.add(key); // アップロード成功後に既知集合へ
   }
 
   async delete(key: string): Promise<void> {
@@ -168,6 +176,7 @@ export class DropboxAdapter implements StorageAdapter {
       headers: { Authorization: await this.authHeader(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: toPath(key) }),
     });
+    this.knownObjects.delete(key); // 既知集合からも除去（Issue #27）
     if (res.status === 409) return; // 既に無い = 冪等
     this.checkAuth(res.status);
     if (!res.ok) return this.fail(res, 'delete_v2');

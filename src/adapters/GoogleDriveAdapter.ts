@@ -30,6 +30,9 @@ interface DriveList {
 export class GoogleDriveAdapter implements StorageAdapter {
   private readonly tokens: TokenProvider;
   private readonly onAuthError: (() => void) | undefined;
+  // name（= key）→ fileId のセッション内キャッシュ（Issue #27）。Drive の fileId は不変で、heads/ も
+  // PATCH で id 据え置きのため安全。findId のネットワーク往復を削り、同期 1 回あたりの API アクセスを減らす。
+  private readonly idCache = new Map<string, string>();
 
   constructor(opts: GoogleDriveAdapterOptions) {
     this.tokens = opts.tokens;
@@ -78,6 +81,8 @@ export class GoogleDriveAdapter implements StorageAdapter {
   // name（= key）→ fileId。appDataFolder 内を name 完全一致で検索（無ければ null）。
   // key はアプリ生成（objects/<hex>・heads/<uuid>）でクォートを含まないため、q の値はそのまま使える。
   private async findId(name: string): Promise<string | null> {
+    const cached = this.idCache.get(name);
+    if (cached) return cached; // キャッシュ命中＝ネットワーク検索を省く（Issue #27）
     const params = new URLSearchParams({
       spaces: APP_FOLDER,
       q: `name='${name}'`,
@@ -88,7 +93,9 @@ export class GoogleDriveAdapter implements StorageAdapter {
     this.checkAuth(res.status);
     if (!res.ok) return this.fail(res, 'find');
     const body = (await res.json()) as DriveList;
-    return body.files?.[0]?.id ?? null;
+    const id = body.files?.[0]?.id ?? null;
+    if (id) this.idCache.set(name, id); // ミス時のみ検索し、結果をキャッシュ
+    return id;
   }
 
   async list(prefix: string): Promise<string[]> {
@@ -105,7 +112,12 @@ export class GoogleDriveAdapter implements StorageAdapter {
       this.checkAuth(res.status);
       if (!res.ok) return this.fail(res, 'list');
       const body = (await res.json()) as DriveList;
-      for (const f of body.files ?? []) if (f.name.startsWith(prefix)) out.push(f.name);
+      // prefix フィルタ前に全ファイルの id をキャッシュへ。同期開始の list('heads/') で全 object の
+      // id が無料でウォームされ、以降の get/既存 put が findId のネットワーク検索を出さなくなる（Issue #27）。
+      for (const f of body.files ?? []) {
+        this.idCache.set(f.name, f.id);
+        if (f.name.startsWith(prefix)) out.push(f.name);
+      }
       pageToken = body.nextPageToken;
     } while (pageToken);
     return out.sort();
@@ -160,14 +172,23 @@ export class GoogleDriveAdapter implements StorageAdapter {
     });
     this.checkAuth(res.status);
     if (!res.ok) return this.fail(res, 'upload');
+    const created = (await res.json()) as { id?: string };
+    if (created.id) this.idCache.set(name, created.id); // 作成 id をキャッシュ（Issue #27）
   }
 
   async delete(key: string): Promise<void> {
     const id = await this.findId(key);
-    if (!id) return; // 既に無い = 冪等
+    if (!id) {
+      this.idCache.delete(key);
+      return; // 既に無い = 冪等
+    }
     const res = await this.authedFetch(`${DRIVE}/files/${id}`, { method: 'DELETE' });
-    if (res.status === 404) return;
+    if (res.status === 404) {
+      this.idCache.delete(key);
+      return;
+    }
     this.checkAuth(res.status);
     if (!res.ok) return this.fail(res, 'delete');
+    this.idCache.delete(key); // キャッシュからも除去（Issue #27）
   }
 }
