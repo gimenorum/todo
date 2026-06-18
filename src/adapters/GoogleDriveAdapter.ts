@@ -83,19 +83,54 @@ export class GoogleDriveAdapter implements StorageAdapter {
   private async findId(name: string): Promise<string | null> {
     const cached = this.idCache.get(name);
     if (cached) return cached; // キャッシュ命中＝ネットワーク検索を省く（Issue #27）
+    const ids = await this.searchIds(name);
+    const id = ids[0] ?? null;
+    if (id) this.idCache.set(name, id); // ミス時のみ検索し、結果をキャッシュ
+    return id;
+  }
+
+  // name 完全一致の**全** fileId を返す（同名ファイルが複数できた場合に集約・全削除するのに使う / Issue #29
+  // フォローアップ）。Drive は同名ファイルを許可し name 検索が遅延整合のため、可変・複数ライタのキー
+  // （conflicts/<todoId>）は別端末が同名ファイルを重複作成しうる。キャッシュは単一 id しか持てないので、
+  // 集約パスは必ずネットワーク検索で全件を取得する。
+  private async searchIds(name: string): Promise<string[]> {
     const params = new URLSearchParams({
       spaces: APP_FOLDER,
       q: `name='${name}'`,
       fields: 'files(id,name)',
-      pageSize: '10',
+      pageSize: '100',
     });
     const res = await this.authedFetch(`${DRIVE}/files?${params.toString()}`);
     this.checkAuth(res.status);
     if (!res.ok) return this.fail(res, 'find');
     const body = (await res.json()) as DriveList;
-    const id = body.files?.[0]?.id ?? null;
-    if (id) this.idCache.set(name, id); // ミス時のみ検索し、結果をキャッシュ
-    return id;
+    return (body.files ?? []).map((f) => f.id);
+  }
+
+  // 同名ファイルが複数できていたら 1 つへ集約する（可変・複数ライタのキー用）。先頭を残し、残りを削除して
+  // 残った id を返す（無ければ null）。delete-after は冪等で、見えていない重複は次回の put/delete で回収される。
+  private async collapseDuplicates(name: string): Promise<string | null> {
+    const ids = await this.searchIds(name);
+    if (ids.length === 0) {
+      this.idCache.delete(name);
+      return null;
+    }
+    const [keep, ...extras] = ids;
+    for (const dupId of extras) {
+      const res = await this.authedFetch(`${DRIVE}/files/${dupId}`, { method: 'DELETE' });
+      if (res.status !== 404) {
+        this.checkAuth(res.status);
+        if (!res.ok) return this.fail(res, 'delete');
+      }
+    }
+    this.idCache.set(name, keep);
+    return keep;
+  }
+
+  // 可変・複数ライタのキー（同名重複が起こりうる）か。conflicts/<todoId> のみ該当（Issue #29 フォローアップ）。
+  // objects/<hash> は不変、heads/<deviceId> は単一ライタなので重複しない＝高速パス（findId→PATCH）を維持する。
+  private isSharedMutable(key: string): boolean {
+    return key.startsWith('conflicts/');
   }
 
   async list(prefix: string): Promise<string[]> {
@@ -134,11 +169,13 @@ export class GoogleDriveAdapter implements StorageAdapter {
   }
 
   async put(key: string, bytes: Uint8Array): Promise<void> {
-    const id = await this.findId(key);
+    // 可変・複数ライタのキー（conflicts/）は同名重複を集約してから 1 つへ書く（先頭を更新・残りを削除）。
+    // 別端末が同名ファイルを重複作成しても、ここで 1 ファイルへ収束する（Issue #29 フォローアップ）。
+    const id = this.isSharedMutable(key) ? await this.collapseDuplicates(key) : await this.findId(key);
     if (id) {
       // objects/ は内容アドレス指定＝不変。既存ならスキップ（同名ファイルの重複作成も避ける / ch.05 §5.5）。
       if (key.startsWith('objects/')) return;
-      // heads/ は可変（advisory HEAD）。既存ファイルの本文を更新する。
+      // heads/（単一ライタ）・conflicts/（集約後の単一 id）は可変。既存ファイルの本文を更新する。
       const res = await this.authedFetch(`${UPLOAD}/files/${id}?uploadType=media`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/octet-stream' },
@@ -177,18 +214,24 @@ export class GoogleDriveAdapter implements StorageAdapter {
   }
 
   async delete(key: string): Promise<void> {
-    const id = await this.findId(key);
-    if (!id) {
+    // 可変・複数ライタのキー（conflicts/）は同名重複を全削除する（解決時に重複コピーを残さない＝幽霊マーカー
+    // 防止 / Issue #29 フォローアップ）。それ以外は単一ファイルなので従来どおり 1 件を削除する。
+    const ids = this.isSharedMutable(key)
+      ? await this.searchIds(key)
+      : await (async (): Promise<string[]> => {
+          const id = await this.findId(key);
+          return id ? [id] : [];
+        })();
+    if (ids.length === 0) {
       this.idCache.delete(key);
       return; // 既に無い = 冪等
     }
-    const res = await this.authedFetch(`${DRIVE}/files/${id}`, { method: 'DELETE' });
-    if (res.status === 404) {
-      this.idCache.delete(key);
-      return;
+    for (const id of ids) {
+      const res = await this.authedFetch(`${DRIVE}/files/${id}`, { method: 'DELETE' });
+      if (res.status === 404) continue;
+      this.checkAuth(res.status);
+      if (!res.ok) return this.fail(res, 'delete');
     }
-    this.checkAuth(res.status);
-    if (!res.ok) return this.fail(res, 'delete');
     this.idCache.delete(key); // キャッシュからも除去（Issue #27）
   }
 }

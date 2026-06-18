@@ -24,12 +24,17 @@ interface StorageAdapter {
 全アダプタ共通のキー規約。`objects/` は内容アドレス指定で不変・べき等。
 
 ```
-objects/<hash>      … commit / snapshot を兼ねる（内容 SHA-256 / 不変）
-heads/<deviceId>    … advisory HEAD（端末ごと。list して先端を再導出できる）
-conflicts/<todoId>  … 未解決競合の共有マーカー（可変。FieldConflict[] の JSON / Issue #29）
+objects/<hash>      … commit / snapshot を兼ねる（内容 SHA-256 / 不変・複数ライタ）
+heads/<deviceId>    … advisory HEAD（端末ごと＝単一ライタ。可変。list して先端を再導出できる）
+conflicts/<todoId>  … 未解決競合の共有マーカー（可変・複数ライタ。FieldConflict[] の JSON / Issue #29）
 ```
 
 - `list('objects/')` で全オブジェクト、`list('heads/')` で各端末の HEAD ヒントを列挙。
+- **キーの性質（重要）**: `objects/` は不変なので複数端末が書いても無害（同内容）。`heads/` は可変だが
+  **端末ごと＝単一ライタ**で衝突しない。`conflicts/<todoId>` は**可変かつ複数端末が同一キーに書く**初の鍵空間で、
+  この組み合わせは**同名ファイルを許す保存先（Google Drive appDataFolder）で重複作成を招く**（[§5.5](#)・
+  Issue #29 フォローアップ）。アダプタは可変・複数ライタのキーについて**同名重複を 1 つに集約**し、読み取り側
+  （`readAllMarkers`）も **(todoId,field) で dedup** して二重表示・データ重複を防ぐ。
 - **`conflicts/<todoId>`（Issue #29）**: 未解決競合は自動マージで先端が単一化されるため DAG から再導出できない
   （[04 §4.5](./04-sync-engine.md)）。検出端末が当該 todo の `FieldConflict[]` を JSON で publish し、各端末は
   毎同期で `list('conflicts/')` して読む＝**未解決集合の権威**。解決時に delete して全端末へ伝播する。書き込み・
@@ -73,12 +78,13 @@ conflicts/<todoId>  … 未解決競合の共有マーカー（可変。FieldCon
 ## 5.5 Google Drive アダプタ（Phase 3）
 
 - 領域: **appDataFolder**（アプリ専用・最小権限 / 要件「ストレージアダプタ」）。スコープは `https://www.googleapis.com/auth/drive.appdata` のみ。**追記専用＋一覧で先端導出**。
-- 重複回避: **鍵（key）をそのままファイル名**にする（`objects/<hash>`・`heads/<deviceId>`）。create 前に `files.list?q=name='…'` で存在確認し、`objects/` は内容アドレス指定＝不変なので既存ならスキップ（同名ファイルの**重複作成を避ける**）。`heads/` は可変なので既存ファイルを `media` 更新する。**一覧の遅延整合を許容**（要件「ストレージアダプタ」, 要件「実装フェーズ」）。
+- 重複回避: **鍵（key）をそのままファイル名**にする（`objects/<hash>`・`heads/<deviceId>`・`conflicts/<todoId>`）。create 前に `files.list?q=name='…'` で存在確認し、`objects/` は内容アドレス指定＝不変なので既存ならスキップ（同名ファイルの**重複作成を避ける**）。`heads/` は可変なので既存ファイルを `media` 更新する。**一覧の遅延整合を許容**（要件「ストレージアダプタ」, 要件「実装フェーズ」）。
+- **可変・複数ライタのキー（`conflicts/<todoId>`）の同名重複集約（Issue #29 フォローアップ）**: Drive は**同名ファイルを許可**し `files.list?q=name='…'` は**遅延整合**。各端末は自分の name→id キャッシュしか持たないため、別端末が作成した `conflicts/<todoId>` を検索でまだ発見できず**同名の 2 つ目を新規作成**しうる（`heads/` は端末ごと＝単一ライタなので起きない）。これを放置すると `list('conflicts/')` が同名を複数返し、`readAllMarkers` が同一 `(todoId,field)` を重複返却→ **`meta.conflicts` の二重化・マージ画面の入力欄二重化**（実報告: メモ欄が 2 つ）。対策として、可変・複数ライタのキー（`conflicts/` 接頭辞）では **`put` 時に同名の全 id を取得し先頭を更新・残りを削除して 1 ファイルへ集約**、**`delete` は同名を全削除**する。遅延整合で一瞬重複しても次回の put/delete で収束し、その間も読み取り側の dedup で UI/キャッシュは正しい。
 - 認証は **`Authorization: Bearer` ヘッダ**（標準 CORS。Dropbox の cors-hack は不要）。**401 はトークンを強制 refresh して 1 回リトライ**し、なお 401 なら `AuthError`（needs-reauth）。403 のスコープ不足も `AuthError`（要再接続）。
 
 | IF | Drive API | 備考 |
 |---|---|---|
-| `put` | `files.create`（multipart, parent=appDataFolder）／既存 `heads/` は `files.update`(uploadType=media) | 事前に `name='…'` を `files.list` で確認＝べき等化・重複回避 |
+| `put` | `files.create`（multipart, parent=appDataFolder）／既存 `heads/` は `files.update`(uploadType=media) | 事前に `name='…'` を `files.list` で確認＝べき等化・重複回避。`conflicts/`（可変・複数ライタ）は同名全 id を取得し先頭更新・残り削除で 1 ファイルへ集約 |
 | `get` | `files.get(alt=media)` | 名前→id 解決を挟む（404 は null） |
 | `list` | `files.list(spaces=appDataFolder)` | 全件取得→`name.startsWith(prefix)` で絞り。遅延整合あり |
 | `delete` | `files.delete` | 名前→id 解決。未存在は冪等 |
