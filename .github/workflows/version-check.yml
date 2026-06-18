@@ -1,0 +1,62 @@
+name: Version check
+
+# PR(→ main) で package.json の version が main(base) より厳密に大きいことを強制する。
+# 「main への全マージ = リリース = version を必ず上げる」方針（ch.15 §15.3/§15.4）を機械強制する。
+#   - HEAD 版: チェックアウトした作業ツリーの package.json から取得。
+#   - BASE 版: origin/<base> の package.json を git show で取得（PR の中身は実行しない）。
+# 安全性: PR 由来のスクリプトは一切実行せず、JSON 読取 / git show / sort のみ。secrets 不使用・read-only。
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # base ブランチを git fetch/show するため全履歴を取得
+      - name: Assert package.json version is bumped above base
+        env:
+          BASE: ${{ github.base_ref }} # 例: main
+        run: |
+          set -euo pipefail
+
+          # --- HEAD（PR）版を作業ツリーの package.json から取得 ---
+          head_ver="$(node -p "require('./package.json').version")"
+
+          # --- BASE（main）版を origin/<base> の package.json から取得 ---
+          git fetch --no-tags --depth=1 origin "$BASE"
+          base_json="$(git show "origin/${BASE}:package.json")"
+          base_ver="$(printf '%s' "$base_json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")"
+
+          echo "base(${BASE})=${base_ver}  head(PR)=${head_ver}"
+
+          # --- 形式チェック（X.Y.Z のみ。pre-release 付きは sort -V が誤るため弾く）---
+          semver_re='^[0-9]+\.[0-9]+\.[0-9]+$'
+          if ! printf '%s' "$head_ver" | grep -Eq "$semver_re"; then
+            echo "::error::package.json の version が X.Y.Z 形式ではありません（head=${head_ver}）。本チェックはプレーン SemVer のみ対応（pre-release を使う場合は semver パッケージへ切替）。"
+            exit 1
+          fi
+          if ! printf '%s' "$base_ver" | grep -Eq "$semver_re"; then
+            echo "::error::base(${BASE}) の version が X.Y.Z 形式ではありません（base=${base_ver}）。"
+            exit 1
+          fi
+
+          # --- 比較: 厳密に大きいこと。equal は先に弾く（sort -V の同値順は不定）---
+          if [ "$head_ver" = "$base_ver" ]; then
+            echo "::error::version が ${BASE} と同一です（${head_ver}）。main へのマージ＝リリースのため package.json の version を上げてください（ch.15 §15.3）。"
+            exit 1
+          fi
+          highest="$(printf '%s\n%s\n' "$base_ver" "$head_ver" | sort -V | tail -n1)"
+          if [ "$highest" != "$head_ver" ]; then
+            echo "::error::version が ${BASE}(${base_ver}) より小さいです（head=${head_ver}）。version を上げてください（ch.15 §15.3）。"
+            exit 1
+          fi
+
+          echo "OK: ${base_ver} -> ${head_ver}（厳密に増加）"
