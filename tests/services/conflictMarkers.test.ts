@@ -9,7 +9,7 @@ import {
   readAllMarkers,
   writeMarkers,
 } from '../../src/services/conflictMarkers';
-import type { FieldConflict } from '../../src/model/types';
+import type { FieldConflict, StorageAdapter } from '../../src/model/types';
 
 const conflicts: FieldConflict[] = [
   { todoId: 'a', field: 'title', base: 'b', left: 'x', right: 'y' },
@@ -53,5 +53,39 @@ describe('services/conflictMarkers', () => {
   it('delete は未存在でも冪等', async () => {
     const adapter = new InMemoryAdapter();
     await expect(deleteMarker(adapter, 'nope')).resolves.toBeUndefined();
+  });
+
+  // Issue #29 フォローアップ: Google Drive は同名ファイルを許可するため list が同名キーを複数返したり、
+  // 単一マーカー JSON に重複が混入しうる。readAllMarkers は (todoId,field) で dedup して正規化する。
+
+  it('単一マーカー JSON に重複が混入していても (todoId,field) で dedup する', async () => {
+    const adapter = new InMemoryAdapter();
+    const dup: FieldConflict[] = [
+      { todoId: 'a', field: 'notes', base: '', left: 'l', right: 'r' },
+      { todoId: 'a', field: 'notes', base: '', left: 'l', right: 'r' },
+    ];
+    await adapter.put(conflictKey('a'), new TextEncoder().encode(JSON.stringify(dup)));
+
+    const read = await readAllMarkers(adapter);
+    expect(read).toHaveLength(1);
+    expect(read[0]).toMatchObject({ todoId: 'a', field: 'notes' });
+  });
+
+  it('list が同名マーカーを複数返しても (todoId,field) で 1 件に正規化する（Drive 同名重複相当）', async () => {
+    // Drive の「同名ファイル複数」を、list が同じキーを 2 回返す fake アダプタで模す。
+    const bytes = new TextEncoder().encode(
+      JSON.stringify([{ todoId: 'a', field: 'notes', base: '', left: 'l', right: 'r' }]),
+    );
+    const dupAdapter: StorageAdapter = {
+      list: (prefix) =>
+        Promise.resolve(prefix === CONFLICTS_PREFIX ? [conflictKey('a'), conflictKey('a')] : []),
+      get: () => Promise.resolve(bytes),
+      put: () => Promise.resolve(),
+      delete: () => Promise.resolve(),
+    };
+
+    const read = await readAllMarkers(dupAdapter);
+    expect(read).toHaveLength(1);
+    expect(read[0]).toMatchObject({ todoId: 'a', field: 'notes' });
   });
 });

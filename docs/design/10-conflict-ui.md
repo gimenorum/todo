@@ -68,7 +68,10 @@
 - **publish（検出端末）**: 同期周回で `syncOnce` が返した `res.conflicts` を `writeMarkers` で
   `conflicts/<todoId>` に JSON 保存。
 - **読み取り（全端末）**: 毎同期で `readAllMarkers`（`list('conflicts/')`→get→parse→flatten）し、これを
-  `activeConflicts` の**権威**とする（検出端末も相手端末も同じ集合を見る）。
+  `activeConflicts` の**権威**とする（検出端末も相手端末も同じ集合を見る）。読み取り時に **`(todoId,field)` で
+  dedup** する＝Google Drive が同名ファイルを許し `list` が同名を複数返しても（[05 §5.5](./05-storage-adapter.md)・
+  Issue #29 フォローアップ）、同一競合の二重表示・`meta.conflicts` の二重化を防ぐ（実報告: マージ画面でメモ欄が
+  2 つ出る不具合の修正）。アダプタ側でも同名重複を集約するため、収束後は単一ファイルに戻る。
 - **delete（解決端末）**: `resolveConflict` で削除意図を**保留集合 `pendingConflictDeletes`（IDB 永続）**に積み、
   同期周回で `deleteMarker` を実行する。**リモートから消えたことを確認できた（throw しない）todoId だけ集合から外す**
   ＝オフライン/transient では残して**確実に同期できるまで毎同期リトライ**する（成功を仮定しない）。
