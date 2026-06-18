@@ -1,6 +1,6 @@
 import type { DeviceSettings, State } from '../../model/types';
 import type { UiContext, ViewController } from '../context';
-import { el } from '../dom';
+import { el, setTextIfChanged } from '../dom';
 
 // 連携済み保存先の表示名。
 function providerLabel(provider: DeviceSettings['connectedProvider']): string {
@@ -22,6 +22,18 @@ export function createSettingsView(ctx: UiContext): ViewController {
   const connectDropboxBtn = el('button', { class: 'btn', text: 'Dropbox と連携', attrs: { type: 'button' } });
   const connectGoogleBtn = el('button', { class: 'btn', text: 'Google Drive と連携', attrs: { type: 'button' } });
   const connectNote = el('p', { class: 'muted', attrs: { hidden: '' } });
+  // 再認証要（needs-reauth）のときの復帰導線。連携済みは連携ボタンを隠すため、現プロバイダで
+  // 連携フローを再実行する専用ボタンを別に用意する（Issue #41）。
+  const reconnectNote = el('p', {
+    class: 'muted',
+    text: '再連携が必要です。下のボタンから再連携してください。',
+    attrs: { hidden: '' },
+  });
+  const reconnectBtn = el('button', {
+    class: 'btn',
+    text: '再連携',
+    attrs: { type: 'button', hidden: '' },
+  });
   const disconnectBtn = el('button', {
     class: 'btn btn-secondary',
     text: '連携を解除',
@@ -39,8 +51,15 @@ export function createSettingsView(ctx: UiContext): ViewController {
     connectNote.hidden = true;
     void ctx.actions.connectGoogle().catch(showConnectError);
   });
+  reconnectBtn.addEventListener('click', () => {
+    // 現在連携中のプロバイダで再認証する（needs-reauth でも connectedProvider は保持されている）。
+    const provider = ctx.store.getState().settings.connectedProvider;
+    const run = provider === 'gdrive' ? ctx.actions.connectGoogle : ctx.actions.connectDropbox;
+    connectNote.hidden = true;
+    void run().catch(showConnectError);
+  });
   disconnectBtn.addEventListener('click', () => void ctx.actions.disconnect());
-  link.append(connectDropboxBtn, connectGoogleBtn, disconnectBtn, connectNote);
+  link.append(connectDropboxBtn, connectGoogleBtn, reconnectNote, reconnectBtn, disconnectBtn, connectNote);
   root.append(link);
 
   // --- 同期設定（連携済みのみ表示） ---
@@ -71,7 +90,7 @@ export function createSettingsView(ctx: UiContext): ViewController {
     void ctx.actions.changeSettings({ autoSyncIntervalMs: min * 60_000 });
   });
 
-  const syncNowBtn = el('button', { class: 'btn', text: '今すぐ同期', attrs: { type: 'button' } });
+  const syncNowBtn = el('button', { class: 'btn btn-sync-now', text: '今すぐ同期', attrs: { type: 'button' } });
   syncNowBtn.addEventListener('click', () => void ctx.actions.syncNow());
 
   sync.append(manualLabel, intervalLabel, intervalField, syncNowBtn);
@@ -129,6 +148,11 @@ export function createSettingsView(ctx: UiContext): ViewController {
       disconnectBtn.hidden = !connected;
       if (connected) connectNote.hidden = true;
 
+      // 再認証要のときだけ「再連携」導線を出す（Issue #41）。
+      const needsReauth = connected && state.global === 'needs-reauth';
+      reconnectNote.hidden = !needsReauth;
+      reconnectBtn.hidden = !needsReauth;
+
       sync.hidden = !connected;
       const interval = state.settings.autoSyncMode === 'interval';
       if (modeManual.checked === interval) modeManual.checked = !interval;
@@ -136,6 +160,11 @@ export function createSettingsView(ctx: UiContext): ViewController {
       intervalField.hidden = !interval;
       const min = String(Math.round(state.settings.autoSyncIntervalMs / 60_000));
       if (intervalInput.value !== min) intervalInput.value = min;
+
+      // 同期中は「今すぐ同期」を連打不可にし、文言で進行を示す（Issue #41）。幅は CSS で固定。
+      const syncing = state.global === 'syncing';
+      syncNowBtn.disabled = syncing;
+      setTextIfChanged(syncNowBtn, syncing ? '同期中…' : '今すぐ同期');
     },
   };
 }
