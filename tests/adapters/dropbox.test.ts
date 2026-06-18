@@ -87,4 +87,34 @@ describe('DropboxAdapter 固有挙動', () => {
     await a.put('objects/abc', new TextEncoder().encode('z'));
     expect(mock.store.has('/objects/abc')).toBe(true);
   });
+
+  it('content 操作（download/upload）は CORS 単純リクエスト＝独自ヘッダ無し・arg/authorization はクエリ', async () => {
+    // ブラウザ CORS 対策（ch.05 §5.4）: content.dropboxapi.com は preflight を正しく返さないため、
+    // Dropbox-API-Arg / Authorization / Content-Type を一切付けず、arg・authorization をクエリで渡す
+    // ＝preflight を起こさない「単純リクエスト」にする。本テストでその形状を固定する。
+    const mock = createDropboxMock();
+    const calls: { url: string; init?: RequestInit }[] = [];
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: typeof input === 'string' ? input : input.toString(), init });
+      return mock.fetch(input as unknown as string, init);
+    }) as unknown as typeof fetch;
+    const a = new DropboxAdapter({ tokens });
+
+    await a.put('objects/abc', new TextEncoder().encode('z'));
+    await a.get('objects/abc');
+
+    const contentCalls = calls.filter((c) => /\/files\/(download|upload)/.test(c.url));
+    expect(contentCalls).toHaveLength(2);
+    for (const c of contentCalls) {
+      const url = new URL(c.url);
+      const h = new Headers(c.init?.headers);
+      // arg と authorization はクエリで渡る（ヘッダではない）
+      expect(url.searchParams.get('arg')).toBeTruthy();
+      expect(url.searchParams.get('authorization')).toMatch(/^Bearer /);
+      // preflight を誘発する独自ヘッダは付けない
+      expect(h.has('Dropbox-API-Arg')).toBe(false);
+      expect(h.has('Authorization')).toBe(false);
+      expect(h.has('Content-Type')).toBe(false);
+    }
+  });
 });

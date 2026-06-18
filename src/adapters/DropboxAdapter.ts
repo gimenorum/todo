@@ -49,6 +49,18 @@ export class DropboxAdapter implements StorageAdapter {
     return `Bearer ${await this.tokens.getAccessToken()}`;
   }
 
+  // content エンドポイント（download/upload）用の URL を組み立てる。arg と authorization を
+  // **URL クエリ**で渡し、独自ヘッダ（Dropbox-API-Arg / Authorization / Content-Type）を一切付けない。
+  // これによりリクエストが CORS の「単純リクエスト」になり **preflight を起こさない**＝ブラウザから
+  // 直接呼べる。content.dropboxapi.com は preflight を正しく返さず、ヘッダ方式だと ACAO 無しで
+  // CORS 失敗するため（Dropbox 公式のブラウザ CORS 回避策 / ch.05 §5.4）。RPC（api.dropboxapi.com）は
+  // preflight を処理するのでヘッダ方式のまま（list/delete）。
+  private async contentUrl(endpoint: string, arg: unknown): Promise<string> {
+    const auth = encodeURIComponent(`Bearer ${await this.tokens.getAccessToken()}`);
+    const a = encodeURIComponent(JSON.stringify(arg));
+    return `${CONTENT}/${endpoint}?authorization=${auth}&arg=${a}`;
+  }
+
   // 401 を検知したら onAuthError を呼びエラーを投げる（SyncService が分類する）。
   private checkAuth(status: number): void {
     if (status === 401) {
@@ -109,12 +121,9 @@ export class DropboxAdapter implements StorageAdapter {
   }
 
   async get(key: string): Promise<Uint8Array | null> {
-    const res = await fetch(`${CONTENT}/files/download`, {
+    // CORS 単純リクエスト化のため独自ヘッダを付けない（arg/authorization はクエリ）。
+    const res = await fetch(await this.contentUrl('files/download', { path: toPath(key) }), {
       method: 'POST',
-      headers: {
-        Authorization: await this.authHeader(),
-        'Dropbox-API-Arg': JSON.stringify({ path: toPath(key) }),
-      },
     });
     if (res.status === 409) return null; // path/not_found
     this.checkAuth(res.status);
@@ -123,15 +132,15 @@ export class DropboxAdapter implements StorageAdapter {
   }
 
   async put(key: string, bytes: Uint8Array): Promise<void> {
-    const res = await fetch(`${CONTENT}/files/upload`, {
-      method: 'POST',
-      headers: {
-        Authorization: await this.authHeader(),
-        'Dropbox-API-Arg': JSON.stringify({ path: toPath(key), mode: 'overwrite', mute: true }),
-        'Content-Type': 'application/octet-stream',
+    // Content-Type を付けない＝単純リクエスト（application/octet-stream は preflight を誘発するため外す）。
+    // Dropbox はアップロード本文を Content-Type に依らず生バイトとして扱う。arg/authorization はクエリ。
+    const res = await fetch(
+      await this.contentUrl('files/upload', { path: toPath(key), mode: 'overwrite', mute: true }),
+      {
+        method: 'POST',
+        body: new Uint8Array(bytes), // ArrayBuffer 裏付けを保証（TS 5.7 BodyInit 対策）
       },
-      body: new Uint8Array(bytes), // ArrayBuffer 裏付けを保証（TS 5.7 BodyInit 対策）
-    });
+    );
     this.checkAuth(res.status);
     if (!res.ok) return this.fail(res, 'upload');
   }
