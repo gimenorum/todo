@@ -114,6 +114,40 @@ describe('GoogleDriveAdapter 固有挙動', () => {
     expect(findCount).toBe(warmed); // ウォーム後は q=name 検索が増えない
   });
 
+  it('conflicts/（可変・複数ライタ）の同名重複を put で 1 つに集約する（Issue #29 フォローアップ）', async () => {
+    // 遅延整合 mock: 別 idCache の 2 アダプタが同名 conflicts/t1 を重複作成するレースを再現する。
+    const mock = createGoogleDriveMock({ lazyList: true });
+    globalThis.fetch = mock.fetch;
+    const A = new GoogleDriveAdapter({ tokens });
+    const B = new GoogleDriveAdapter({ tokens });
+
+    await A.put('conflicts/t1', enc.encode('A')); // 作成（flush まで検索に出ない）
+    await B.put('conflicts/t1', enc.encode('B')); // B は A の作成を検索で見られず 2 つ目を作成
+    mock.flush(); // 遅延整合の解消 → 同名 2 ファイルが見える
+    expect(mock.fileCount('conflicts/t1')).toBe(2);
+
+    // 次の put で集約: 先頭を更新・残りを削除 → 1 ファイルへ収束。
+    await A.put('conflicts/t1', enc.encode('C'));
+    expect(mock.fileCount('conflicts/t1')).toBe(1);
+    expect(dec.decode((await A.get('conflicts/t1')) as Uint8Array)).toBe('C');
+  });
+
+  it('conflicts/ の delete は同名重複を全削除する（幽霊マーカー防止 / Issue #29 フォローアップ）', async () => {
+    const mock = createGoogleDriveMock({ lazyList: true });
+    globalThis.fetch = mock.fetch;
+    const A = new GoogleDriveAdapter({ tokens });
+    const B = new GoogleDriveAdapter({ tokens });
+
+    await A.put('conflicts/t1', enc.encode('A'));
+    await B.put('conflicts/t1', enc.encode('B'));
+    mock.flush();
+    expect(mock.fileCount('conflicts/t1')).toBe(2);
+
+    await A.delete('conflicts/t1');
+    expect(mock.fileCount('conflicts/t1')).toBe(0);
+    expect(await A.get('conflicts/t1')).toBeNull();
+  });
+
   it('403 スコープ不足は AuthError（権限不足→再連携）', async () => {
     globalThis.fetch = (() =>
       Promise.resolve(

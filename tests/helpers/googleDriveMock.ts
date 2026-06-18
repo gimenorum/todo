@@ -1,10 +1,21 @@
 // tests/helpers/googleDriveMock.ts — Google Drive API v3（appDataFolder）の最小モック（ch.05 §5.6）。
 // 実 API を叩かずに GoogleDriveAdapter の name↔key 写像・multipart・応答処理を契約テストで検証する。
 // 対応: GET files（list / q=name='…' で find）, GET files/{id}?alt=media, POST upload(multipart),
-// PATCH upload(media), DELETE files/{id}。バック実体は Map<name, {id, bytes}>。
+// PATCH upload(media), DELETE files/{id}。
+//
+// 実体は **id キーの Map**（`Map<id,{name,bytes}>`）。Drive は**同名ファイルを許可**するため、name キーの Map で
+// は実挙動（同名重複）を再現できない（Issue #29 フォローアップでこの差がバグを見逃した）。
+//   - `lazyList:true` で**遅延整合**を擬似する: POST 新規作成は `flush()` まで `q=name` 検索／list に出ない
+//     （GET/PATCH/DELETE は id 指定なので常に可）。別 idCache の 2 アダプタが同名を重複作成するレースを再現する。
+//   - `store`（name ビュー / 後方互換）・`fileCount(name)`・`flush()` を公開。
 export interface GoogleDriveMock {
   fetch: typeof fetch;
-  store: Map<string, { id: string; bytes: Uint8Array }>;
+  // name → {id,bytes} の後方互換ビュー（同名重複時は最後の 1 件）。非表示（未 flush）分も含む。
+  readonly store: Map<string, { id: string; bytes: Uint8Array }>;
+  // 当該 name のファイル数（同名重複の検証用）。非表示分も数える。
+  fileCount(name: string): number;
+  // 遅延整合の解消（未 flush の新規作成を list/find に反映する）。
+  flush(): void;
 }
 
 function json(obj: unknown, status = 200): Response {
@@ -28,12 +39,19 @@ function parseMultipart(body: Uint8Array): { name: string; bytes: Uint8Array } {
 }
 
 export function createGoogleDriveMock(
-  opts: { requireAuth?: boolean; validToken?: string } = {},
+  opts: { requireAuth?: boolean; validToken?: string; lazyList?: boolean } = {},
 ): GoogleDriveMock {
-  const store = new Map<string, { id: string; bytes: Uint8Array }>();
-  const idToName = new Map<string, string>();
+  const files = new Map<string, { name: string; bytes: Uint8Array }>(); // id → {name,bytes}
+  const hidden = new Set<string>(); // 未 flush の新規作成 id（lazyList 時のみ）
   let seq = 0;
   const valid = opts.validToken ?? 'test-token';
+  const lazyList = opts.lazyList ?? false;
+
+  const visibleEntries = (): { id: string; name: string }[] => {
+    const out: { id: string; name: string }[] = [];
+    for (const [id, e] of files) if (!hidden.has(id)) out.push({ id, name: e.name });
+    return out;
+  };
 
   const impl = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const u = new URL(typeof input === 'string' ? input : input.toString());
@@ -55,14 +73,14 @@ export function createGoogleDriveMock(
           new Uint8Array((init?.body as Uint8Array) ?? new Uint8Array()),
         );
         const newId = `id${++seq}`;
-        store.set(name, { id: newId, bytes });
-        idToName.set(newId, name);
+        files.set(newId, { name, bytes });
+        if (lazyList) hidden.add(newId); // 遅延整合: flush まで検索/list に出さない
         return json({ id: newId });
       }
       if (method === 'PATCH' && id) {
-        const name = idToName.get(id);
-        if (!name) return new Response(null, { status: 404 });
-        store.set(name, { id, bytes: new Uint8Array((init?.body as Uint8Array) ?? new Uint8Array()) });
+        const e = files.get(id);
+        if (!e) return new Response(null, { status: 404 });
+        files.set(id, { name: e.name, bytes: new Uint8Array((init?.body as Uint8Array) ?? new Uint8Array()) });
         return json({ id });
       }
       return new Response(null, { status: 404 });
@@ -72,29 +90,40 @@ export function createGoogleDriveMock(
     if (drive) {
       const id = drive[1];
       if (id) {
-        const name = idToName.get(id);
         if (method === 'DELETE') {
-          if (name) {
-            store.delete(name);
-            idToName.delete(id);
-          }
+          files.delete(id);
+          hidden.delete(id);
           return new Response(null, { status: 204 });
         }
         // GET ?alt=media
-        const entry = name ? store.get(name) : undefined;
-        if (!entry) return new Response(null, { status: 404 });
-        return new Response(new Uint8Array(entry.bytes), { status: 200 });
+        const e = files.get(id);
+        if (!e) return new Response(null, { status: 404 });
+        return new Response(new Uint8Array(e.bytes), { status: 200 });
       }
-      // list / find by q（name='…'）
+      // list / find by q（name='…'）。非表示（未 flush）分は返さない＝遅延整合。
       const q = u.searchParams.get('q');
       const want = q ? /name\s*=\s*'([^']*)'/.exec(q)?.[1] : undefined;
-      const names = [...store.keys()].filter((n) => want === undefined || n === want);
-      const files = names.map((n) => ({ id: store.get(n)!.id, name: n }));
-      return json({ files });
+      const filesOut = visibleEntries().filter((f) => want === undefined || f.name === want);
+      return json({ files: filesOut });
     }
 
     return new Response(null, { status: 404 });
   };
 
-  return { fetch: impl as unknown as typeof fetch, store };
+  return {
+    fetch: impl as unknown as typeof fetch,
+    get store(): Map<string, { id: string; bytes: Uint8Array }> {
+      const view = new Map<string, { id: string; bytes: Uint8Array }>();
+      for (const [id, e] of files) view.set(e.name, { id, bytes: e.bytes }); // 同名は後勝ち（後方互換）
+      return view;
+    },
+    fileCount(name: string): number {
+      let n = 0;
+      for (const e of files.values()) if (e.name === name) n++;
+      return n;
+    },
+    flush(): void {
+      hidden.clear();
+    },
+  };
 }

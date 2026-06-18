@@ -38,21 +38,29 @@ export async function writeMarkers(
 
 // リモートの全マーカーを読み、FieldConflict[] に平坦化する。これを「権威ある現在の未解決集合」とする。
 // 壊れた/空のマーカーは握りつぶしてスキップ（同期全体を落とさない）。
+// 同一 (todoId, field) の重複は dedup する（先勝ち・list は昇順ソート済みで決定的）。Google Drive は
+// 同名ファイルを許可し name 検索が遅延整合のため、複数端末が同じ conflicts/<todoId> を書くと同名ファイルが
+// 一時的に重複し list が同名を複数返しうる（Issue #29 フォローアップ）。アダプタ側で集約するが、収束途中でも
+// UI/キャッシュが壊れないよう読み取り側でも防御的に正規化する。
 export async function readAllMarkers(adapter: StorageAdapter): Promise<FieldConflict[]> {
   const keys = await adapter.list(CONFLICTS_PREFIX);
-  const out: FieldConflict[] = [];
+  const byKey = new Map<string, FieldConflict>();
   for (const key of keys) {
     const bytes = await adapter.get(key);
     if (!bytes) continue;
     try {
       const parsed = JSON.parse(decoder.decode(bytes)) as FieldConflict[];
-      if (Array.isArray(parsed)) out.push(...parsed);
+      if (!Array.isArray(parsed)) continue;
+      for (const c of parsed) {
+        const k = `${c.todoId} ${c.field}`;
+        if (!byKey.has(k)) byKey.set(k, c); // 先勝ち＝重複コピーは同値なのでどちらでも収束は同じ
+      }
     } catch {
       // 破損マーカーは無視（次回 writeMarkers で正しい内容に上書きされる）。
       continue;
     }
   }
-  return out;
+  return Array.from(byKey.values());
 }
 
 // 当該 todo のマーカーを削除する（解決を全端末へ伝播）。adapter.delete は未存在でも冪等。
