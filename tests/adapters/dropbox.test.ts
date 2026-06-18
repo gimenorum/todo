@@ -4,6 +4,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import type { StorageAdapter } from '../../src/model/types';
 import { DropboxAdapter } from '../../src/adapters/DropboxAdapter';
+import { AuthError } from '../../src/adapters/errors';
 import type { TokenProvider } from '../../src/adapters/oauth/tokenStore';
 import { createDropboxMock } from '../helpers/dropboxMock';
 import { runContract } from '../helpers/contract';
@@ -37,6 +38,40 @@ describe('DropboxAdapter 固有挙動', () => {
     });
     await expect(a.list('objects/')).rejects.toThrow(/401|失効/);
     expect(reauth).toBe(true);
+  });
+
+  it('403 missing_scope は AuthError を投げ onAuthError を呼ぶ（権限不足→再連携）', async () => {
+    // 権限（スコープ）未許可時の Dropbox 応答を模した 403。実 API のみで起きモックでは出ない経路。
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            error_summary: 'missing_scope/...',
+            error: { '.tag': 'missing_scope', required_scope: 'files.content.write' },
+          }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )) as unknown as typeof fetch;
+    let reauth = false;
+    const a = new DropboxAdapter({
+      tokens,
+      onAuthError: () => {
+        reauth = true;
+      },
+    });
+    await expect(a.put('objects/abc', new TextEncoder().encode('z'))).rejects.toThrow(AuthError);
+    expect(reauth).toBe(true);
+  });
+
+  it('その他の失敗（5xx）は本文を含むエラーで原因が分かる', async () => {
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        new Response('Internal Server Error', { status: 500 }),
+      )) as unknown as typeof fetch;
+    const a = new DropboxAdapter({ tokens });
+    await expect(a.put('objects/abc', new TextEncoder().encode('z'))).rejects.toThrow(
+      /500.*Internal Server Error/,
+    );
   });
 
   it('download 409 は null（未存在）', async () => {

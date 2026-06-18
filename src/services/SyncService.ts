@@ -139,7 +139,10 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
       flicker.end('idle');
     } catch (err) {
       // 背景処理なので投げ直さない。状態（offline/error/needs-reauth）で UI に伝える。
-      flicker.end(classifyError(err));
+      const status = classifyError(err);
+      // 汎用 'error' は UI に「同期エラー」としか出ず原因が分からないため、必ずログに残す（診断容易性 / ch.09）。
+      if (status === 'error') console.error('[sync] 同期に失敗しました:', err);
+      flicker.end(status);
     }
   }
 

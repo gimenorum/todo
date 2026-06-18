@@ -20,6 +20,10 @@ import type { DeviceId, DeviceSettings, StorageAdapter } from '../model/types';
 const DROPBOX_APP_KEY = import.meta.env.VITE_DROPBOX_APP_KEY;
 const DROPBOX_AUTH_URL = 'https://www.dropbox.com/oauth2/authorize';
 const DROPBOX_TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
+// アダプタが必要とする最小スコープ（list=metadata.read／download=content.read／upload・delete=content.write）。
+// 認可 URL に明示指定して付与を確定させる。※ Dropbox アプリの「Permissions」でも同じ権限を有効化
+// しておかないとトークンに付与されず、各操作が 403 missing_scope になる（ch.05 §5.4）。
+const DROPBOX_SCOPE = 'files.metadata.read files.content.read files.content.write';
 // アクセストークン失効のこの時間前から先回りで refresh する。
 const TOKEN_REFRESH_MARGIN_MS = 60_000;
 // PKCE 一時値はリダイレクト往復をまたぐため sessionStorage に置く。
@@ -71,6 +75,7 @@ export async function connectDropbox(): Promise<void> {
     redirectUri: redirectUri(),
     state,
     challenge,
+    scope: DROPBOX_SCOPE, // 必要権限を明示要求（未指定だとアプリ既定権限頼みになり 403 の原因になる）
     tokenAccessType: 'offline', // refresh token を得る
   });
   window.location.assign(url);

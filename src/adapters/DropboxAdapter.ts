@@ -57,6 +57,25 @@ export class DropboxAdapter implements StorageAdapter {
     }
   }
 
+  // 401 以外の失敗を本文付きで投げる。403 missing_scope は権限不足＝再連携で解決するため
+  // AuthError 扱いにし（UI は needs-reauth＝「要再接続」）、それ以外は理由が分かるよう本文を含める。
+  private async fail(res: Response, op: string): Promise<never> {
+    let detail = '';
+    try {
+      detail = (await res.text()).trim();
+    } catch {
+      /* 本文を読めない場合は無視 */
+    }
+    if (res.status === 403 && detail.includes('missing_scope')) {
+      this.onAuthError?.();
+      throw new AuthError(
+        'Dropbox の権限（スコープ）が不足しています。設定で一度切断し、再度連携し直してください。' +
+          (detail ? `（詳細: ${detail}）` : ''),
+      );
+    }
+    throw new Error(`Dropbox ${op} 失敗（${res.status}）${detail ? `: ${detail}` : ''}`);
+  }
+
   async list(prefix: string): Promise<string[]> {
     const folder = toPath(prefix).replace(/\/$/, ''); // '/objects/' → '/objects'
     const out: string[] = [];
@@ -67,7 +86,7 @@ export class DropboxAdapter implements StorageAdapter {
     });
     if (res.status === 409) return out; // フォルダ未作成 = 空
     this.checkAuth(res.status);
-    if (!res.ok) throw new Error(`Dropbox list_folder 失敗（${res.status}）`);
+    if (!res.ok) return this.fail(res, 'list_folder');
     let page = (await res.json()) as ListResult;
     for (;;) {
       for (const e of page.entries) {
@@ -83,7 +102,7 @@ export class DropboxAdapter implements StorageAdapter {
         body: JSON.stringify({ cursor: page.cursor }),
       });
       this.checkAuth(res.status);
-      if (!res.ok) throw new Error(`Dropbox list_folder/continue 失敗（${res.status}）`);
+      if (!res.ok) return this.fail(res, 'list_folder/continue');
       page = (await res.json()) as ListResult;
     }
     return out.sort();
@@ -99,7 +118,7 @@ export class DropboxAdapter implements StorageAdapter {
     });
     if (res.status === 409) return null; // path/not_found
     this.checkAuth(res.status);
-    if (!res.ok) throw new Error(`Dropbox download 失敗（${res.status}）`);
+    if (!res.ok) return this.fail(res, 'download');
     return new Uint8Array(await res.arrayBuffer());
   }
 
@@ -114,7 +133,7 @@ export class DropboxAdapter implements StorageAdapter {
       body: new Uint8Array(bytes), // ArrayBuffer 裏付けを保証（TS 5.7 BodyInit 対策）
     });
     this.checkAuth(res.status);
-    if (!res.ok) throw new Error(`Dropbox upload 失敗（${res.status}）`);
+    if (!res.ok) return this.fail(res, 'upload');
   }
 
   async delete(key: string): Promise<void> {
@@ -125,6 +144,6 @@ export class DropboxAdapter implements StorageAdapter {
     });
     if (res.status === 409) return; // 既に無い = 冪等
     this.checkAuth(res.status);
-    if (!res.ok) throw new Error(`Dropbox delete_v2 失敗（${res.status}）`);
+    if (!res.ok) return this.fail(res, 'delete_v2');
   }
 }
