@@ -6,7 +6,8 @@ import type { StoredToken } from '../../model/types';
 
 // 有効なアクセストークンの供給契約。実装は services（必要なら refresh して永続する）。
 export interface TokenProvider {
-  getAccessToken(): Promise<string>;
+  // forceRefresh=true なら失効前でも refresh token があれば再取得する（content 401 後のリトライ用 / ch.05 §5.4）。
+  getAccessToken(opts?: { forceRefresh?: boolean }): Promise<string>;
 }
 
 interface TokenResponse {
