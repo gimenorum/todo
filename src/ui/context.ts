@@ -17,6 +17,8 @@ export interface UiContext {
   actions: Actions;
   navigate: (route: Route) => void;
   install: InstallController;
+  // ビルド時 env で接続可能な保存先（連携ボタンの出し分けに使う）。services の isXConfigured を root で評価。
+  providers: { dropbox: boolean; gdrive: boolean };
 }
 
 // 各ビューの共通形（生成時に DOM を組み立て、update(state) で差分反映）。
