@@ -78,6 +78,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # PKCE public client の App key（クライアント同梱・秘密でない）。Vite が import.meta.env へ注入。
+          # 未設定だと本番バンドルにキーが入らず Dropbox 連携が起動しない（ch.05 §5.4・ch.15）。
+          VITE_DROPBOX_APP_KEY: ${{ vars.VITE_DROPBOX_APP_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

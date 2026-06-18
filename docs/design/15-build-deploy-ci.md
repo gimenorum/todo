@@ -14,6 +14,7 @@
 - ホスト: **GitHub Pages（public リポジトリ）**。**GitHub Actions** で `dist/` をデプロイ（main のバージョンタグ基準 / 要件「デプロイ / ホスティング」）。
 - 独自ドメイン使用（取得済み・DNS は GitHub Pages に向け済み / 要件「デプロイ / ホスティング」）。**本番オリジンはビルド・文書に固定しない**（決定 #1）。
 - マニフェスト `scope`/`start_url` は相対、OAuth リダイレクトは `window.location.origin` 基準、CSP は保存先 FQDN＋`'self'`＝すべて**オリジン非依存**（[12](./12-pwa-sw-csp.md)・[05](./05-storage-adapter.md)）。OAuth リダイレクト URI の各プロバイダ登録は **Phase 2/3 にユーザーが実施**。
+- **Dropbox App key の供給**: `VITE_DROPBOX_APP_KEY` を **GitHub Actions のリポジトリ変数**（Settings → Secrets and variables → Actions → Variables）に登録し、`release.yml`/`deploy.yml` のビルド step へ `env: VITE_DROPBOX_APP_KEY: ${{ vars.VITE_DROPBOX_APP_KEY }}` で渡す（PKCE public client ゆえ **Secret でなく Variable** ／ [18](./18-open-questions.md) #3）。**未注入だと本番バンドルにキーが入らず Dropbox 連携が起動しない**。`deploy.yml` の `build` ジョブは `environment` 未宣言のため、Environment 変数では参照できない＝**リポジトリ変数**を使うこと。
 
 ### ワークフロー設計
 
