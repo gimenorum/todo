@@ -5,6 +5,7 @@
 // 交互に実行 → SyncResult（mergedSnapshot / conflicts / picked）を assert」。
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SyncResult } from '../../src/model/types';
+import { decodeCommit, objKey } from '../../src/core';
 import { Device, establishCommonBase } from '../helpers/device';
 import { fixedClock, makeDevice, makeTodo } from '../helpers/factories';
 import { newAdapter } from '../helpers/storage';
@@ -177,6 +178,61 @@ describe('一覧の遅延整合でも fork を吸収（ch.05 §5.3）', () => {
     expect(r2.conflicts).toEqual([]);
     expect(r2.mergedSnapshot.todos['x'].title).toBe('new');
     expect(r2.mergedSnapshot.todos['x'].notes).toBe('note');
+  });
+});
+
+describe('部分書き込みレース: 未伝播の先端を握りつぶさない（hotfix 0.2.1）', () => {
+  // 別端末が commit/snapshot/head を別々に書く途中（snapshot blob 未着）に pull しても
+  // throw（→「同期エラー」）せず、ローカルを据え置き、伝播後の次回 pull で取り込む。
+  it('相手先端の snapshot 未着なら throw せず据え置き、伝播後に取り込む', async () => {
+    const adapter = newAdapter();
+    await establishCommonBase(adapter, [A, B], (t) => {
+      t['x'] = makeTodo({ id: 'x', title: 'orig' });
+    });
+    await A.commit((t) => (t['x'].title = 'new'));
+    await A.publish(adapter); // commit + snapshot + head を書く
+
+    // A の最新 snapshot blob だけが B からまだ見えない状況を模す（commit/head は可視）。
+    const aCommit = decodeCommit((await adapter.get(objKey(A.head!)))!);
+    const snapKey = objKey(aCommit.snapshot);
+    const snapBytes = (await adapter.get(snapKey))!;
+    await adapter.delete(snapKey);
+
+    const r1 = await B.sync(adapter); // throw しない
+    expect(r1.conflicts).toEqual([]);
+    expect(r1.picked).toBeNull();
+    expect(r1.mergedSnapshot.todos['x'].title).toBe('orig'); // A の変更はまだ未反映
+
+    await adapter.put(snapKey, snapBytes); // 伝播完了
+    const r2 = await B.sync(adapter);
+    expect(r2.mergedSnapshot.todos['x'].title).toBe('new'); // 次回 pull で取り込む
+  });
+
+  it('自端末の編集は保持しつつ、未伝播の相手先端だけを次回に回す', async () => {
+    const adapter = newAdapter();
+    await establishCommonBase(adapter, [A, B], (t) => {
+      t['x'] = makeTodo({ id: 'x', title: 'orig', notes: '' });
+    });
+    await A.commit((t) => (t['x'].title = 'A-new'));
+    await A.publish(adapter);
+    await B.commit((t) => (t['x'].notes = 'B-note')); // B 側のローカル編集＝先端が分岐
+
+    const aCommit = decodeCommit((await adapter.get(objKey(A.head!)))!);
+    const snapKey = objKey(aCommit.snapshot);
+    const snapBytes = (await adapter.get(snapKey))!;
+    await adapter.delete(snapKey);
+
+    const r1 = await B.sync(adapter); // A 先端は未伝播 → B の編集だけで単一先端
+    expect(r1.picked).toBeNull();
+    expect(r1.mergedSnapshot.todos['x'].notes).toBe('B-note');
+    expect(r1.mergedSnapshot.todos['x'].title).toBe('orig'); // A-new はまだ
+
+    await adapter.put(snapKey, snapBytes); // 伝播完了
+    const r2 = await B.sync(adapter); // fork をマージ
+    expect(r2.picked).not.toBeNull();
+    expect(r2.conflicts).toEqual([]);
+    expect(r2.mergedSnapshot.todos['x'].title).toBe('A-new');
+    expect(r2.mergedSnapshot.todos['x'].notes).toBe('B-note');
   });
 });
 
