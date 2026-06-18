@@ -40,6 +40,8 @@ jobs:
           # PKCE public client の App key（クライアント同梱・秘密でない）。Vite が import.meta.env へ注入。
           # 未設定だと本番バンドルにキーが入らず Dropbox 連携が起動しない（ch.05 §5.4・ch.15）。
           VITE_DROPBOX_APP_KEY: ${{ vars.VITE_DROPBOX_APP_KEY }}
+          # Google OAuth クライアント ID（GIS トークンモデル / 秘密でない）。未設定なら Google 連携は無効（ch.05 §5.5）。
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

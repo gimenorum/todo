@@ -38,7 +38,16 @@ async function bootstrap(): Promise<void> {
   const runtime = createSyncRuntime(store); // services↔state を結線する同期ランタイム。
   const actions = createActions(store, runtime);
   const install = setupInstall();
-  const ctx: UiContext = { store, actions, navigate, install };
+  const ctx: UiContext = {
+    store,
+    actions,
+    navigate,
+    install,
+    providers: {
+      dropbox: settingsSvc.isDropboxConfigured(),
+      gdrive: settingsSvc.isGoogleConfigured(),
+    },
+  };
 
   const shell = createAppShell(ctx);
   const mount = document.getElementById('app');

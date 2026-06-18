@@ -1,9 +1,14 @@
-import type { State } from '../../model/types';
+import type { DeviceSettings, State } from '../../model/types';
 import type { UiContext, ViewController } from '../context';
 import { el } from '../dom';
 
+// 連携済み保存先の表示名。
+function providerLabel(provider: DeviceSettings['connectedProvider']): string {
+  return provider === 'gdrive' ? 'Google Drive' : provider === 'dropbox' ? 'Dropbox' : '保存先';
+}
+
 // 設定シェル（ch.08）。未連携時は同期系 UI を出さない（受け入れ基準 / ch.09）。
-// 連携導線は設定に置く（Dropbox OAuth / ch.05）。
+// 連携導線は設定に置く（Dropbox / Google Drive 連携 / ch.05）。
 export function createSettingsView(ctx: UiContext): ViewController {
   const root = el('section', { class: 'settings-view' });
   root.append(el('h2', { class: 'view-title', text: '設定' }));
@@ -14,22 +19,28 @@ export function createSettingsView(ctx: UiContext): ViewController {
   const linkDesc = el('p', { class: 'muted' });
   link.append(linkDesc);
 
-  const connectBtn = el('button', { class: 'btn', text: '保存先に接続（Dropbox）', attrs: { type: 'button' } });
+  const connectDropboxBtn = el('button', { class: 'btn', text: 'Dropbox に接続', attrs: { type: 'button' } });
+  const connectGoogleBtn = el('button', { class: 'btn', text: 'Google Drive に接続', attrs: { type: 'button' } });
   const connectNote = el('p', { class: 'muted', attrs: { hidden: '' } });
   const disconnectBtn = el('button', {
     class: 'btn btn-secondary',
     text: '保存先から切断',
     attrs: { type: 'button', hidden: '' },
   });
-  connectBtn.addEventListener('click', () => {
+  const showConnectError = (e: unknown): void => {
+    connectNote.textContent = e instanceof Error ? e.message : String(e);
+    connectNote.hidden = false;
+  };
+  connectDropboxBtn.addEventListener('click', () => {
     connectNote.hidden = true;
-    void ctx.actions.connect().catch((e: unknown) => {
-      connectNote.textContent = e instanceof Error ? e.message : String(e);
-      connectNote.hidden = false;
-    });
+    void ctx.actions.connectDropbox().catch(showConnectError);
+  });
+  connectGoogleBtn.addEventListener('click', () => {
+    connectNote.hidden = true;
+    void ctx.actions.connectGoogle().catch(showConnectError);
   });
   disconnectBtn.addEventListener('click', () => void ctx.actions.disconnect());
-  link.append(connectBtn, disconnectBtn, connectNote);
+  link.append(connectDropboxBtn, connectGoogleBtn, disconnectBtn, connectNote);
   root.append(link);
 
   // --- 同期設定（連携済みのみ表示） ---
@@ -105,11 +116,13 @@ export function createSettingsView(ctx: UiContext): ViewController {
   return {
     el: root,
     update(state: State) {
-      const connected = state.settings.connectedProvider !== 'none';
+      const provider = state.settings.connectedProvider;
+      const connected = provider !== 'none';
       linkDesc.textContent = connected
-        ? '接続済み（Dropbox）。複数端末で同期されます。'
-        : '保存先に接続すると、複数端末で同期できます（Dropbox アプリと App key が必要）。';
-      connectBtn.hidden = connected;
+        ? `接続済み（${providerLabel(provider)}）。複数端末で同期されます。`
+        : '保存先に接続すると、複数端末で同期できます。';
+      connectDropboxBtn.hidden = connected || !ctx.providers.dropbox;
+      connectGoogleBtn.hidden = connected || !ctx.providers.gdrive;
       disconnectBtn.hidden = !connected;
       if (connected) connectNote.hidden = true;
 

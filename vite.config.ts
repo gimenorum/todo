@@ -16,6 +16,9 @@ const APP_VERSION = (
  * dev サーバは HMR がインライン/eval を使うため CSP を入れない。
  * Phase 2 で Dropbox の API FQDN を connect-src に追加（download/upload と RPC/token）。
  * 認可ページ https://www.dropbox.com/oauth2/authorize はトップレベル遷移のため connect-src 対象外。
+ * Phase 3 で Google（GIS トークンモデル / ch.05 §5.5）を追加: GIS スクリプト（script-src）、
+ * Drive API www.googleapis.com（connect-src）、GIS の無音 iframe accounts.google.com（frame-src）。
+ * 認可ポップアップはトップレベル遷移のため対象外。
  */
 function injectCspMeta(): PluginOption {
   const csp = [
@@ -24,8 +27,9 @@ function injectCspMeta(): PluginOption {
     "object-src 'none'",
     "img-src 'self' data:",
     "style-src 'self'",
-    "script-src 'self'",
-    "connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com",
+    "script-src 'self' https://accounts.google.com/gsi/client",
+    "connect-src 'self' https://api.dropboxapi.com https://content.dropboxapi.com https://www.googleapis.com https://accounts.google.com",
+    "frame-src 'self' https://accounts.google.com",
     "manifest-src 'self'",
     "worker-src 'self'",
   ].join('; ');

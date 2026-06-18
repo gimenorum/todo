@@ -13,7 +13,7 @@
 | CSP | `<meta http-equiv>` で指定（GitHub Pages はヘッダ不可） | [12](./12-pwa-sw-csp.md) |
 | 通信 | HTTPS（本番ドメイン） | [12](./12-pwa-sw-csp.md) |
 | OAuth スコープ | 最小権限（Dropbox=アプリ専用フォルダ / Drive=appDataFolder） | [05](./05-storage-adapter.md) |
-| OAuth 方式 | PKCE / public client | [05](./05-storage-adapter.md) |
+| OAuth 方式 | public client（秘密なし）。Dropbox=PKCE＋refresh token、Drive=**GIS トークンモデル**（アクセストークンのみ・リフレッシュ無し。静的 PWA では Google の refresh token が使えないため / [05 §5.5](./05-storage-adapter.md)） | [05](./05-storage-adapter.md) |
 | トークン保管 | IndexedDB 保持（**防御境界ではない前提**） | [06](./06-local-store.md) |
 
 > トークンを IndexedDB に置くのは利便性のためで、端末を奪われた場合の防御にはならない。これは v1 の明示的な割り切り。
