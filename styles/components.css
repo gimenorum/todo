@@ -20,6 +20,14 @@
   border-color: var(--danger);
   color: #fff;
 }
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* 「今すぐ同期」/「同期中…」で幅が変わらないよう固定（Issue #41）。 */
+.btn-sync-now {
+  min-width: 7.5em;
+}
 
 input[type='text'],
 input[type='date'],

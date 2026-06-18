@@ -85,7 +85,8 @@ export function createAppShell(ctx: UiContext): {
     // 端末で動作中の実バージョンを常設表示（不具合報告時の切り分けを容易にする / Issue #33）。
     el('span', { class: 'app-version', text: `v${__APP_VERSION__}` }),
   );
-  const status = createStatusIndicator();
+  // needs-reauth のときヘッダーのステータスをタップで設定画面へ誘導（Issue #41）。
+  const status = createStatusIndicator(() => ctx.navigate({ name: 'settings' }));
   header.append(status.el);
 
   // online 復帰などの一時バナー（State.banner / ch.11 §11.3）。
