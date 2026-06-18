@@ -71,7 +71,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
     if (res.status === 403 && /insufficient|scope|accessNotConfigured/i.test(detail)) {
       this.onAuthError?.();
       throw new AuthError(
-        'Google Drive の権限（スコープ）が不足しています。設定で一度切断し、再度連携し直してください。' +
+        'Google Drive の権限（スコープ）が不足しています。設定で一度連携を解除し、再度連携し直してください。' +
           (detail ? `（詳細: ${detail}）` : ''),
       );
     }

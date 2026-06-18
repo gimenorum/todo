@@ -25,6 +25,13 @@
   font-weight: 700;
 }
 
+/* 動作中バージョンの常設表記（ヘッダ / Issue #33）。タイトル左隣に控えめ表示。 */
+.app-version {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
 .sidebar-toggle {
   display: none;
   border: none;
