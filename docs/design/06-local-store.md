@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | `todos` | `id` | `updatedAt`, `dueDate` | materialize 済み TODO リスト（表示の正）。`deleted` は boolean ゆえ IndexedDB の index に使えない＝索引化せず、表示フィルタは `selectors`（メモリ）で行う | 0 |
 | `objects` | `hash` | `kind` | commit / blob のローカル複製 | 2 |
-| `meta` | `key` | — | advisory HEAD・lastSyncAt・deviceId・conflicts（未解決競合の永続 / Issue #26） | 0/2 |
+| `meta` | `key` | — | advisory HEAD・lastSyncAt・deviceId・conflicts（未解決競合のローカルキャッシュ。権威はリモート `conflicts/` / Issue #29・#26）・pendingConflictDeletes（マーカー削除の保留集合 / Issue #29） | 0/2 |
 | `settings` | `key` | — | 端末ごと設定（同期しない / 要件「同期の設定・タイミング」） | 0 |
 | `tokens` | `provider` | — | OAuth トークン（防御境界でない前提 / 要件「セキュリティ」） | 2 |
 
