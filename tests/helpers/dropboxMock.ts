@@ -21,29 +21,37 @@ export function createDropboxMock(
   const valid = opts.validToken ?? 'test-token';
 
   const impl = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const url = typeof input === 'string' ? input : input.toString();
+    const u = new URL(typeof input === 'string' ? input : input.toString());
+    const path = u.pathname; // 例: /2/files/download（クエリは無視してパスで判定）
     const headers = new Headers(init?.headers);
+    // content エンドポイントは arg / authorization を URL クエリで受ける（CORS 単純化）。
+    // RPC は従来どおりヘッダ＋本文。テストは両形式を受理する。
+    const qArg = u.searchParams.get('arg');
+    const qAuth = u.searchParams.get('authorization');
 
     if (opts.requireAuth) {
-      const auth = headers.get('Authorization') ?? '';
-      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const authRaw = qAuth ?? headers.get('Authorization') ?? '';
+      const token = authRaw.startsWith('Bearer ') ? authRaw.slice(7) : '';
       if (token !== valid) return new Response(null, { status: 401 });
     }
 
-    if (url.endsWith('/files/upload')) {
-      const arg = JSON.parse(headers.get('Dropbox-API-Arg') ?? '{}') as { path: string };
+    const readArg = (): { path: string } =>
+      JSON.parse(qArg ?? headers.get('Dropbox-API-Arg') ?? '{}') as { path: string };
+
+    if (path.endsWith('/files/upload')) {
+      const arg = readArg();
       store.set(arg.path, new Uint8Array(init?.body as Uint8Array));
       return jsonResponse({ name: arg.path.split('/').pop(), path_lower: arg.path });
     }
 
-    if (url.endsWith('/files/download')) {
-      const arg = JSON.parse(headers.get('Dropbox-API-Arg') ?? '{}') as { path: string };
+    if (path.endsWith('/files/download')) {
+      const arg = readArg();
       const v = store.get(arg.path);
       if (!v) return new Response(null, { status: 409 }); // path/not_found
       return new Response(new Uint8Array(v), { status: 200 });
     }
 
-    if (url.endsWith('/files/list_folder')) {
+    if (path.endsWith('/files/list_folder')) {
       const body = JSON.parse((init?.body as string) ?? '{}') as { path: string };
       const folder = body.path; // '/objects'（末尾スラッシュ無し）
       const entries = [...store.keys()]
@@ -52,7 +60,7 @@ export function createDropboxMock(
       return jsonResponse({ entries, cursor: 'END', has_more: false });
     }
 
-    if (url.endsWith('/files/delete_v2')) {
+    if (path.endsWith('/files/delete_v2')) {
       const body = JSON.parse((init?.body as string) ?? '{}') as { path: string };
       if (!store.has(body.path)) return new Response(null, { status: 409 });
       store.delete(body.path);

@@ -111,15 +111,16 @@ export async function disconnect(): Promise<DeviceSettings> {
   return updateSettings({ connectedProvider: 'none' });
 }
 
-// 有効なアクセストークンを返す TokenProvider。失効間際なら refresh して永続する。
+// 有効なアクセストークンを返す TokenProvider。失効間際（または forceRefresh 指定時）は refresh して永続する。
+// forceRefresh は content 操作の 401 後リトライで使う（一過性のトークン状態 401 を自己回復 / ch.05 §5.4）。
 function dropboxTokenProvider(): TokenProvider {
   return {
-    async getAccessToken(): Promise<string> {
+    async getAccessToken(opts?: { forceRefresh?: boolean }): Promise<string> {
       const t = await tokenStore.getToken('dropbox');
       if (!t) throw new AuthError('Dropbox 未連携です。');
       const expiringSoon =
         t.expiresAt !== undefined && t.expiresAt - Date.now() < TOKEN_REFRESH_MARGIN_MS;
-      if (expiringSoon && t.refreshToken && DROPBOX_APP_KEY) {
+      if ((opts?.forceRefresh || expiringSoon) && t.refreshToken && DROPBOX_APP_KEY) {
         try {
           const next = await refreshAccessToken(
             { tokenUrl: DROPBOX_TOKEN_URL, clientId: DROPBOX_APP_KEY, refreshToken: t.refreshToken },

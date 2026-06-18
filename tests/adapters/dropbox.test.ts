@@ -87,4 +87,63 @@ describe('DropboxAdapter 固有挙動', () => {
     await a.put('objects/abc', new TextEncoder().encode('z'));
     expect(mock.store.has('/objects/abc')).toBe(true);
   });
+
+  it('content 操作（download/upload）は cors-hack（reject_cors_preflight ＋ クエリ認証）で preflight を避ける', async () => {
+    // ブラウザ CORS 対策（ch.05 §5.4）: content.dropboxapi.com は preflight を正しく返さないため、
+    // ① arg/authorization を URL クエリで渡し、② reject_cors_preflight=true で URL パラメータ認証を有効化し、
+    // ③ 独自ヘッダ（Dropbox-API-Arg / Authorization）は付けない。Content-Type は download/upload で要件が
+    // 異なる: download は付けない（cors-hack charset を 400 で拒否）、upload は text/plain;charset=dropbox-cors-hack
+    // （安全リストかつ Dropbox が受理）。本テストでこの形状を固定する。
+    const mock = createDropboxMock();
+    const calls: { url: string; init?: RequestInit }[] = [];
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: typeof input === 'string' ? input : input.toString(), init });
+      return mock.fetch(input as unknown as string, init);
+    }) as unknown as typeof fetch;
+    const a = new DropboxAdapter({ tokens });
+
+    await a.put('objects/abc', new TextEncoder().encode('z'));
+    await a.get('objects/abc');
+
+    const get = calls.find((c) => /\/files\/download/.test(c.url));
+    const put = calls.find((c) => /\/files\/upload/.test(c.url));
+    expect(get).toBeDefined();
+    expect(put).toBeDefined();
+
+    for (const c of [get!, put!]) {
+      const url = new URL(c.url);
+      const h = new Headers(c.init?.headers);
+      // arg・authorization・reject_cors_preflight はクエリで渡る
+      expect(url.searchParams.get('arg')).toBeTruthy();
+      expect(url.searchParams.get('authorization')).toMatch(/^Bearer /);
+      expect(url.searchParams.get('reject_cors_preflight')).toBe('true');
+      // preflight を誘発する独自ヘッダは付けない
+      expect(h.has('Dropbox-API-Arg')).toBe(false);
+      expect(h.has('Authorization')).toBe(false);
+    }
+    // download は Content-Type を付けない（cors-hack charset は download で拒否される）
+    expect(new Headers(get!.init?.headers).has('Content-Type')).toBe(false);
+    // upload は安全リストの cors-hack Content-Type（無いと 400「Missing Content-Type」）
+    expect(new Headers(put!.init?.headers).get('Content-Type')).toBe('text/plain; charset=dropbox-cors-hack');
+  });
+
+  it('content 401 は token を強制 refresh して 1 回リトライする（一過性のトークン状態を自己回復）', async () => {
+    // stale-token → 401、forceRefresh 後に fresh-token → 200 を模す（list は通るが content だけ 401 の自己回復）。
+    const refreshing: TokenProvider = (() => {
+      let refreshed = false;
+      return {
+        getAccessToken: (opts?: { forceRefresh?: boolean }) => {
+          if (opts?.forceRefresh) refreshed = true;
+          return Promise.resolve(refreshed ? 'fresh-token' : 'stale-token');
+        },
+      };
+    })();
+    const mock = createDropboxMock({ requireAuth: true, validToken: 'fresh-token' });
+    globalThis.fetch = mock.fetch;
+    const a = new DropboxAdapter({ tokens: refreshing });
+
+    await a.put('objects/retry', new TextEncoder().encode('v')); // stale→401→forceRefresh→fresh→200
+    expect(mock.store.has('/objects/retry')).toBe(true); // リトライで書き込めた
+    expect((await a.get('objects/retry')) !== null).toBe(true); // download もリトライ後は取得できる
+  });
 });
