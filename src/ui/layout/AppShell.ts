@@ -79,7 +79,12 @@ export function createAppShell(ctx: UiContext): {
     const collapsed = !ctx.store.getState().settings.sidebarCollapsed;
     void ctx.actions.changeSettings({ sidebarCollapsed: collapsed });
   });
-  header.append(toggle, el('h1', { class: 'app-title', text: 'TODO' }));
+  header.append(
+    toggle,
+    el('h1', { class: 'app-title', text: 'TODO' }),
+    // 端末で動作中の実バージョンを常設表示（不具合報告時の切り分けを容易にする / Issue #33）。
+    el('span', { class: 'app-version', text: `v${__APP_VERSION__}` }),
+  );
   const status = createStatusIndicator();
   header.append(status.el);
 
