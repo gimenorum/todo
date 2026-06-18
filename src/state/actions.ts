@@ -1,7 +1,6 @@
 import type { Store } from './store';
 import type { DeviceSettings, Uuid } from '../model/types';
 import type { TodoDraft, TodoPatch } from '../services/TodoService';
-import type { ConflictChoice } from '../services/SyncService';
 import * as todoSvc from '../services/TodoService';
 import * as settingsSvc from '../services/SettingsService';
 
@@ -15,7 +14,7 @@ export interface SyncBridge {
   connectDropbox(): Promise<void>;
   connectGoogle(): Promise<void>;
   disconnect(): Promise<void>;
-  resolveConflict(id: Uuid, choice: ConflictChoice): Promise<void>;
+  resolveConflict(id: Uuid, patch: TodoPatch): Promise<void>;
   reloadFromLocal(): Promise<void>;
   applyIntervalChange(): void; // 設定変更時に interval を貼り直す
 }
@@ -30,7 +29,7 @@ export interface Actions {
   connectGoogle(): Promise<void>;
   disconnect(): Promise<void>;
   syncNow(): Promise<void>;
-  resolveConflict(id: Uuid, choice: ConflictChoice): Promise<void>;
+  resolveConflict(id: Uuid, patch: TodoPatch): Promise<void>;
 }
 
 export function createActions(store: Store, bridge: SyncBridge): Actions {
@@ -88,8 +87,8 @@ export function createActions(store: Store, bridge: SyncBridge): Actions {
       await bridge.syncNow();
     },
 
-    async resolveConflict(id, choice) {
-      await bridge.resolveConflict(id, choice);
+    async resolveConflict(id, patch) {
+      await bridge.resolveConflict(id, patch);
     },
   };
 }

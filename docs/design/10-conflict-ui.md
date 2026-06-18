@@ -1,7 +1,7 @@
 # 10. 競合解決 UI（WinMerge ライク）
 
 > 要件トレース: requirements.md「競合の表示と解決」「実装フェーズ」「受け入れ基準」
-> 状態: 暫定 UI 実装済（Phase 2）・本実装は Phase 4 ／ 実装フェーズ: 4（Phase 2 は暫定 UI）
+> 状態: 実装済（Phase 4＝WinMerge ライク本実装。Phase 2 は暫定 UI）／ 実装フェーズ: 4
 
 競合（同一項目の同一フィールド両側別値 / [04 §4.5](./04-sync-engine.md)）は、競合した TODO ごとに個別表示する。全体バナーは作らない（要件「競合の表示と解決」）。
 
@@ -26,13 +26,17 @@
 - 各フィールドは left/right の選択、または直接編集が可能。
 - **edit vs delete の競合**（`deleted` フィールド競合 / [04 §4.5](./04-sync-engine.md)）は、フィールド選択ではなく **「編集版を残す／削除を適用」の二択**として提示する（確定 / [18](./18-open-questions.md) #6）。「編集版を残す」を選べば編集版を採用、「削除を適用」を選べば tombstone を確定する。
 - 下部に **マージ結果プレビュー**。確定で **マージコミット**を生成（services 経由 / [04 §4.6](./04-sync-engine.md)）。
+  - 実装: `ui/views/ConflictMergeView.ts`（フィールド単位の left/right 選択・直接編集・プレビュー）→ 純関数 `buildPatch` →
+    `SyncService.resolveConflict(patch)`（`updateTodo`→`runOnce`）。マージコミット生成後は相手先端が祖先化して base となり、
+    選択値は再競合せず収束する（Phase 2 の暫定解決と同じ収束経路を流用）。
 
 ## 10.3 メモのテキスト差分
 
 メモ（自由記述）は行 or 単語単位のテキスト差分で表示（要件「競合の表示と解決」）。
 
-- 依存を増やさず（要件「技術スタック」）**LCS ベースの最小実装**を自前で用意（`ui/components/TextDiff`）。
-- まず行単位 diff、必要なら単語単位に拡張。
+- 依存を増やさず（要件「技術スタック」）**LCS ベースの最小実装**を自前で用意（実装済 `src/ui/components/TextDiff.ts`
+  ＝`diffLines`/`renderTextDiff`）。
+- まず行単位 diff、必要なら単語単位に拡張（v1 は行単位）。
 
 ## 10.4 Phase 2 暫定 → Phase 4 本実装
 
