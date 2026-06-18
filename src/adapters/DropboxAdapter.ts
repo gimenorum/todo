@@ -9,6 +9,9 @@ import { AuthError } from './errors';
 
 const CONTENT = 'https://content.dropboxapi.com/2';
 const RPC = 'https://api.dropboxapi.com/2';
+// Dropbox の CORS 回避用 Content-Type。MIME は text/plain（CORS 安全リスト）なので preflight を
+// 起こさず、かつ Dropbox はこの charset を octet-stream 相当として受理する（ch.05 §5.4）。
+const CORS_HACK_CT = 'text/plain; charset=dropbox-cors-hack';
 
 export interface DropboxAdapterOptions {
   tokens: TokenProvider;
@@ -49,16 +52,19 @@ export class DropboxAdapter implements StorageAdapter {
     return `Bearer ${await this.tokens.getAccessToken()}`;
   }
 
-  // content エンドポイント（download/upload）用の URL を組み立てる。arg と authorization を
-  // **URL クエリ**で渡し、独自ヘッダ（Dropbox-API-Arg / Authorization / Content-Type）を一切付けない。
-  // これによりリクエストが CORS の「単純リクエスト」になり **preflight を起こさない**＝ブラウザから
-  // 直接呼べる。content.dropboxapi.com は preflight を正しく返さず、ヘッダ方式だと ACAO 無しで
-  // CORS 失敗するため（Dropbox 公式のブラウザ CORS 回避策 / ch.05 §5.4）。RPC（api.dropboxapi.com）は
-  // preflight を処理するのでヘッダ方式のまま（list/delete）。
+  // content エンドポイント（download/upload）用の URL を組み立てる。Dropbox の「cors-hack」3 点セット:
+  //   1) arg と authorization を **URL クエリ**で渡す（独自ヘッダ Dropbox-API-Arg/Authorization を使わない）
+  //   2) reject_cors_preflight=true を付ける（これが無いと URL パラメータ認証が無効＝401「Invalid
+  //      authorization value」になる）
+  //   3) Content-Type は CORS_HACK_CT（text/plain＝安全リスト）にする（呼び出し側で付与）
+  // これでリクエストは CORS の「単純リクエスト」になり preflight を起こさず、Dropbox が URL パラメータ
+  // 認証を受理する＝ブラウザから直接呼べる（content.dropboxapi.com は preflight を正しく返さないため
+  // ヘッダ方式だと CORS 失敗する / ch.05 §5.4）。RPC（api.dropboxapi.com）は preflight を処理するので
+  // ヘッダ方式のまま（list/delete）。
   private async contentUrl(endpoint: string, arg: unknown): Promise<string> {
     const auth = encodeURIComponent(`Bearer ${await this.tokens.getAccessToken()}`);
     const a = encodeURIComponent(JSON.stringify(arg));
-    return `${CONTENT}/${endpoint}?authorization=${auth}&arg=${a}`;
+    return `${CONTENT}/${endpoint}?authorization=${auth}&arg=${a}&reject_cors_preflight=true`;
   }
 
   // 401 を検知したら onAuthError を呼びエラーを投げる（SyncService が分類する）。
@@ -121,9 +127,10 @@ export class DropboxAdapter implements StorageAdapter {
   }
 
   async get(key: string): Promise<Uint8Array | null> {
-    // CORS 単純リクエスト化のため独自ヘッダを付けない（arg/authorization はクエリ）。
+    // CORS 単純リクエスト: 独自ヘッダは付けず Content-Type のみ（cors-hack）。auth/arg はクエリ。
     const res = await fetch(await this.contentUrl('files/download', { path: toPath(key) }), {
       method: 'POST',
+      headers: { 'Content-Type': CORS_HACK_CT },
     });
     if (res.status === 409) return null; // path/not_found
     this.checkAuth(res.status);
@@ -132,12 +139,13 @@ export class DropboxAdapter implements StorageAdapter {
   }
 
   async put(key: string, bytes: Uint8Array): Promise<void> {
-    // Content-Type を付けない＝単純リクエスト（application/octet-stream は preflight を誘発するため外す）。
-    // Dropbox はアップロード本文を Content-Type に依らず生バイトとして扱う。arg/authorization はクエリ。
+    // CORS 単純リクエスト: Content-Type は cors-hack（text/plain＝安全リスト・preflight 不要）。
+    // application/octet-stream は preflight を誘発するため使わない。auth/arg/reject_cors_preflight はクエリ。
     const res = await fetch(
       await this.contentUrl('files/upload', { path: toPath(key), mode: 'overwrite', mute: true }),
       {
         method: 'POST',
+        headers: { 'Content-Type': CORS_HACK_CT },
         body: new Uint8Array(bytes), // ArrayBuffer 裏付けを保証（TS 5.7 BodyInit 対策）
       },
     );
