@@ -9,7 +9,7 @@ const SORT_OPTIONS: ReadonlyArray<[SortBy, string]> = [
   ['due', '期限'],
   ['priority', '優先度'],
   ['title', 'タイトル'],
-  ['category', 'カテゴリ'],
+  ['category', 'タグ'],
   ['manual', '手動'],
 ];
 const DUE_OPTIONS: ReadonlyArray<[ListFilter['due'], string]> = [
@@ -87,7 +87,7 @@ export function createTaskListView(ctx: UiContext): ViewController {
     attrs: { type: 'search', placeholder: 'タイトルで検索…', 'aria-label': 'タイトルで検索' },
   });
   const catWrap = el('label', { class: 'filter-field' });
-  catWrap.append(el('span', { class: 'field-label', text: 'カテゴリ' }));
+  catWrap.append(el('span', { class: 'field-label', text: 'タグ' }));
   const catSelect = el('select', { class: 'filter-category' });
   catWrap.append(catSelect);
   const priWrap = el('label', { class: 'filter-field' });

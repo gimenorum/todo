@@ -47,3 +47,8 @@
    `width:auto` にしてラベルと横並びに（`styles/components.css`）。
 4. **検索ボックスの見た目不一致**: `input[type='search']` を共通入力スタイルの対象に追加し、追加欄と同じ装飾に
    （Safari のピル形は `appearance:none` で打ち消し）。
+
+### 実機レビュー対応（その2）
+- **文言統一**: 並び替え・絞り込みの UI 文言「カテゴリ」を **「タグ」** に統一（内部の `sortBy: 'category'` 値は据え置き）。
+- **長いタグのはみ出し**: タグ選択 `<select>` に `max-width`（上限）＋ flex 子の `min-width:0` を入れて表示領域からはみ出さないように。
+  一覧行のタグ表示（`.todo-tags`）にも `overflow-wrap: anywhere` を入れ、長い 1 語でも折り返すように。
