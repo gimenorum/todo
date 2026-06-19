@@ -70,10 +70,12 @@ input[type='date'] {
   -webkit-appearance: none;
   min-width: 0;
 }
-/* 期日の値を左寄せして他の左寄せ項目と見た目をそろえる（iOS Safari / Issue #48）。 */
+/* 期日の値を左寄せし、空でも 1 行分の高さを確保して他の入力欄と高さをそろえる
+   （appearance リセットで空時に枠がつぶれるのを防ぐ / iOS Safari / Issue #48）。 */
 input[type='date']::-webkit-date-and-time-value {
   text-align: left;
   margin: 0;
+  min-height: 1.5em;
 }
 
 /* 追加フォーム */
