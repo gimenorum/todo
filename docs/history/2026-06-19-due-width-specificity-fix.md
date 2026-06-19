@@ -68,3 +68,9 @@
 ### 成果物（追記分2）
 - 変更: `src/ui/views/TodoEditView.ts`
 - 変更: `styles/components.css`
+
+### 追補：横並びで項目が重なる不具合の修正
+- 実機 iOS Safari で期日と優先度が**重なって**表示された。原因は iOS の `input[type=date]` がネイティブ固有幅を
+  持ち `width:100%` を無視して列からはみ出すため（`select` は `appearance:none` 済みで影響なし）。
+- `styles/components.css`: `input[type='date'] { appearance:none; -webkit-appearance:none; min-width:0 }` を追加し、
+  日付入力を半幅カラムに収める。狙いの見た目は承認済み案②（重ならない2カラム）のまま。

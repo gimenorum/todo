@@ -63,6 +63,13 @@ select {
   flex: 1;
   min-width: 0;
 }
+/* iOS Safari の日付入力はネイティブ固有幅を持ち width:100% を無視して列からはみ出す
+   （隣カラムと重なる）。appearance をリセットして枠（半幅カラム）に収める（Issue #48）。 */
+input[type='date'] {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0;
+}
 /* 期日の値を左寄せして他の左寄せ項目と見た目をそろえる（iOS Safari / Issue #48）。 */
 input[type='date']::-webkit-date-and-time-value {
   text-align: left;
