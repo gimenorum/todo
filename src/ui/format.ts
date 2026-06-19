@@ -18,6 +18,13 @@ export function formatTime(ms: Millis): string {
   return `${h}:${min}`;
 }
 
+// 一覧表示用。時刻が設定されている（ローカル 00:00 以外）ときだけ "YYYY-MM-DD HH:mm"、
+// それ以外は日付のみ（Issue #71）。
+export function formatDateTime(ms: Millis): string {
+  const time = toTimeInputValue(ms);
+  return time === '' ? formatDate(ms) : `${formatDate(ms)} ${time}`;
+}
+
 // <input type="date"> 用（YYYY-MM-DD）。
 export function toDateInputValue(ms: Millis | null): string {
   return ms === null ? '' : formatDate(ms);

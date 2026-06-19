@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatDateTime,
   fromDateTimeInputValues,
   toDateInputValue,
   toTimeInputValue,
@@ -42,5 +43,12 @@ describe('ui/format 期日の時刻（Issue #71）', () => {
     const ms = fromDateTimeInputValues('2026-06-20', '14:00');
     expect(toDateInputValue(ms)).toBe('2026-06-20');
     expect(toTimeInputValue(ms)).toBe('14:00');
+  });
+
+  it('formatDateTime: 時刻ありは "YYYY-MM-DD HH:mm"、時刻なしは日付のみ', () => {
+    const withTime = fromDateTimeInputValues('2026-06-20', '14:00') as number;
+    expect(formatDateTime(withTime)).toBe('2026-06-20 14:00');
+    const dateOnly = fromDateTimeInputValues('2026-06-20', '') as number;
+    expect(formatDateTime(dateOnly)).toBe('2026-06-20');
   });
 });

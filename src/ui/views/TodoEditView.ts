@@ -68,7 +68,7 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
   dueTime.value = toTimeInputValue(current.dueDate);
   const dueRow = el('div', { class: 'due-datetime' });
   dueRow.append(due, dueTime);
-  dueField.append(el('label', { text: '期日' }), dueRow);
+  dueField.append(el('label', { text: '期限' }), dueRow);
 
   const prField = el('div', { class: 'field' });
   const priority = el('select', { class: 'f-priority' });

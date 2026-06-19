@@ -1,7 +1,7 @@
 import type { ListFilter, SortBy, State, Todo } from '../../model/types';
 import type { UiContext, ViewController } from '../context';
 import { cloneTemplate, el, qs, renderKeyedList, setTextIfChanged } from '../dom';
-import { formatDate } from '../format';
+import { formatDateTime } from '../format';
 import { activeFilterCount, distinctTags, showsSyncUi, visibleTodos } from '../../state/selectors';
 import { PRIORITY_LABEL } from '../../model/constants';
 
@@ -262,7 +262,7 @@ export function createTaskListView(ctx: UiContext): ViewController {
     const done = qs<HTMLInputElement>(node, '.todo-done');
     if (done.checked !== todo.done) done.checked = todo.done;
     setTextIfChanged(qs(node, '.todo-title'), todo.title || '(無題)');
-    setTextIfChanged(qs(node, '.todo-due'), todo.dueDate !== null ? formatDate(todo.dueDate) : '');
+    setTextIfChanged(qs(node, '.todo-due'), todo.dueDate !== null ? formatDateTime(todo.dueDate) : '');
     const pr = qs(node, '.todo-priority');
     setTextIfChanged(pr, todo.priority !== 'none' ? PRIORITY_LABEL[todo.priority] : '');
     pr.className = `todo-priority pri-${todo.priority}`;
