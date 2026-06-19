@@ -185,14 +185,8 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
   function onFocus(): void {
     renderSuggestions();
   }
-  function onBlur(): void {
-    // 候補タップ時に一瞬 blur しても、フォーカスがコンポーネント内に戻っていれば閉じない
-    // （選択直後に残りの候補を出し続けるため。iOS で候補が消える問題の対策）。
-    setTimeout(() => {
-      const a = document.activeElement;
-      if (a !== text && !root.contains(a)) close();
-    }, 0);
-  }
+  // blur では閉じない（iOS で候補タップ時に誤発火し候補が消えるため）。
+  // 閉じるのは外側タップ（onDocPointerDown）／Esc／候補 0 件のみ。
   function onRootClick(e: MouseEvent): void {
     if (e.target === root) text.focus();
   }
@@ -206,7 +200,6 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
   text.addEventListener('keydown', onKeydown);
   text.addEventListener('input', onInput);
   text.addEventListener('focus', onFocus);
-  text.addEventListener('blur', onBlur);
   root.addEventListener('click', onRootClick);
   document.addEventListener('pointerdown', onDocPointerDown);
   window.addEventListener('resize', reposition);
@@ -222,7 +215,6 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
       text.removeEventListener('keydown', onKeydown);
       text.removeEventListener('input', onInput);
       text.removeEventListener('focus', onFocus);
-      text.removeEventListener('blur', onBlur);
       root.removeEventListener('click', onRootClick);
       document.removeEventListener('pointerdown', onDocPointerDown);
       window.removeEventListener('resize', reposition);
