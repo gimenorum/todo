@@ -571,22 +571,23 @@ input[type='date']::-webkit-date-and-time-value {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   z-index: 20;
   margin: 0;
   padding: 4px;
   list-style: none;
   max-height: 240px;
   overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  /* メモ欄（textarea）と区別がつくよう、一段持ち上げた面・アクセント枠・強い影で浮かせる。 */
+  background: color-mix(in srgb, var(--surface) 88%, var(--text) 12%);
+  border: 1px solid var(--primary);
   border-radius: var(--radius);
-  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
 }
 /* 下に余白が無いときは上に反転（自動フリップ）。 */
 .tag-suggest-list.is-above {
   top: auto;
-  bottom: calc(100% + 4px);
+  bottom: calc(100% + 6px);
 }
 .tag-suggest-option {
   padding: 8px 10px;
@@ -595,5 +596,5 @@ input[type='date']::-webkit-date-and-time-value {
   word-break: break-word;
 }
 .tag-suggest-option.is-active {
-  background: color-mix(in srgb, var(--primary) 14%, var(--surface));
+  background: color-mix(in srgb, var(--primary) 28%, var(--surface));
 }
