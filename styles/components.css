@@ -43,6 +43,40 @@ textarea,
 textarea {
   resize: vertical;
 }
+/* select は OS 依存の見た目（特に Mac Safari）を避け、自前の矢印で一貫表示にする（Issue #48）。 */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23888' stroke-width='1.5' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+}
+/* 期日・優先度は 1 行に横並び（2 カラム・半幅）でそろえる（Issue #48）。
+   各カラムは入力欄を width:100%（共有ルール）で満たす。 */
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+.field-row > .field {
+  flex: 1;
+  min-width: 0;
+}
+/* iOS Safari の日付入力はネイティブ固有幅を持ち width:100% を無視して列からはみ出す
+   （隣カラムと重なる）。appearance をリセットして枠（半幅カラム）に収める（Issue #48）。 */
+input[type='date'] {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0;
+}
+/* 期日の値を左寄せし、空でも 1 行分の高さを確保して他の入力欄と高さをそろえる
+   （appearance リセットで空時に枠がつぶれるのを防ぐ / iOS Safari / Issue #48）。 */
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+  min-height: 1.5em;
+}
 
 /* 追加フォーム */
 .add-todo {
@@ -191,6 +225,24 @@ textarea {
 .muted {
   color: var(--muted);
   font-size: 14px;
+}
+
+/* 編集画面の同期エラー（要解決）注意バナー＋解決導線（Issue #45）。 */
+.edit-conflict-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  color: var(--text);
+  font-size: 13px;
+}
+.edit-conflict-note .btn {
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 /* per-todo 同期ステータス・解決ボタン（ch.09 §9.3 / ch.10） */
