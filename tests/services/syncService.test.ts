@@ -8,6 +8,7 @@ import { getDb } from '../../src/store/db';
 import { STORE } from '../../src/model/constants';
 import { fixedClock, makeDevice, makeTodo } from '../helpers/factories';
 import { getPendingConflictDeletes } from '../../src/store/metaStore';
+import { writeMarkers } from '../../src/services/conflictMarkers';
 import { decodeCommit, objKey } from '../../src/core';
 import type { GlobalSyncStatus, StorageAdapter } from '../../src/model/types';
 
@@ -306,6 +307,50 @@ describe('services/SyncService', () => {
 
     expect(outcomes.at(-1)!.conflicts.some((c) => c.todoId === 't1')).toBe(true);
     expect((await remote.list('conflicts/')).length).toBe(1);
+  });
+
+  it('#52: 生きていない todo の残留マーカーは掃除される（バッジ過大計上の防止）', async () => {
+    const remote = new InMemoryAdapter();
+    const clock = fixedClock();
+
+    // 'ghost' は実体の無い（削除済み/不在）todo。競合マーカーだけがリモートに残っている状況を模す。
+    await writeMarkers(remote, [{ todoId: 'ghost', field: 'title', base: 0, left: 1, right: 2 }]);
+    expect((await remote.list('conflicts/')).length).toBe(1);
+
+    // 生きている todo を 1 件持つこの端末で同期する（こちらは競合なし）。
+    await todoStore.putTodo(makeTodo({ id: 'alive', title: 'Alive' }));
+
+    const outcomes: SyncOutcome[] = [];
+    const svc = createSyncService({
+      adapter: remote,
+      deviceId: 'A',
+      clock,
+      onOutcome: (o) => outcomes.push(o),
+      onStatus: () => {},
+    });
+    await svc.runOnce();
+
+    // 残留マーカーは権威集合（バッジの元）から落ち、確認付き削除キューに積まれる。
+    expect(outcomes.at(-1)!.conflicts.some((c) => c.todoId === 'ghost')).toBe(false);
+    expect(outcomes.at(-1)!.perTodoStatus['ghost']).toBeUndefined();
+    expect(await getPendingConflictDeletes()).toContain('ghost');
+
+    // 次回同期でリモートからも物理削除される。
+    await svc.runOnce();
+    expect((await remote.list('conflicts/')).length).toBe(0);
+    expect(await getPendingConflictDeletes()).toEqual([]);
+  });
+
+  it('#52: 生きている todo の競合マーカーは掃除されない（一覧＝バッジに残る）', async () => {
+    const remote = new InMemoryAdapter();
+    const clock = fixedClock();
+    const { outcomes } = await setupTitleConflict(remote, clock);
+
+    // t1 は生きており競合中 → マーカーは残り、conflicts / perTodoStatus にも残る。
+    expect(outcomes.at(-1)!.conflicts.some((c) => c.todoId === 't1')).toBe(true);
+    expect(outcomes.at(-1)!.perTodoStatus['t1']).toBe('conflict');
+    expect((await remote.list('conflicts/')).length).toBe(1);
+    expect(await getPendingConflictDeletes()).toEqual([]);
   });
 
   it('#29: 解決がマーカー削除で別端末にも伝播する', async () => {

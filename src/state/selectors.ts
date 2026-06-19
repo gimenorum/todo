@@ -30,9 +30,11 @@ export function showsSyncUi(state: State): boolean {
   return state.global !== 'unlinked';
 }
 
-// タスクタブのバッジ＝競合のある TODO 件数（フィールド数ではなく todo 単位 / ch.09 §9.6）。
+// タスクタブのバッジ＝一覧に「要解決」を出す todo 件数。一覧（TaskListView）と同じ perTodoStatus を
+// 唯一のソースにして数える（生きているタスクのみ）。state.conflicts はリモートマーカー全件で、削除済み/
+// 未 materialize の残留マーカーを含みうるため、これを直接数えると一覧の行数より多く出る（Issue #52）。
 export function tasksBadge(state: State): number {
-  return new Set(state.conflicts.map((c) => c.todoId)).size;
+  return Object.values(state.perTodoStatus).filter((s) => s === 'conflict').length;
 }
 
 // 設定タブのバッジ＝要再接続/エラー時に出す（ch.09 §9.6）。

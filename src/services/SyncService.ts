@@ -160,6 +160,23 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
     if (res.conflicts.length > 0) await writeMarkers(deps.adapter, res.conflicts);
     // 3) 共有集合を読み、未解決競合の権威とする（検出端末も相手端末も同じ集合を見る）。
     activeConflicts = await readAllMarkers(deps.adapter);
+    // 3a) マージ結果で「生きているタスク」に対応しない競合マーカー（削除済み/不在）は、一覧に出せず
+    //     バッジだけ過大計上され（Issue #52）、リモートにも残り続ける。確認付き削除キューに積んで掃除する
+    //     （次周回冒頭の deleteMarker で確実に削除）。perTodoStatus は alive のみなので一覧と件数が一致する。
+    const aliveIds = new Set(
+      Object.values(res.mergedSnapshot.todos)
+        .filter((t) => !t.deleted)
+        .map((t) => t.id),
+    );
+    if (activeConflicts.some((c) => !aliveIds.has(c.todoId))) {
+      for (const c of activeConflicts) {
+        if (!aliveIds.has(c.todoId) && !pendingDeletes.includes(c.todoId)) {
+          pendingDeletes.push(c.todoId);
+        }
+      }
+      activeConflicts = activeConflicts.filter((c) => aliveIds.has(c.todoId));
+      await setPendingConflictDeletes(pendingDeletes);
+    }
     await setConflicts(activeConflicts); // オフライン再表示用の IDB キャッシュ（権威はリモート）
 
     const lastSyncAt = Date.now();
