@@ -151,9 +151,34 @@ export function createTaskListView(ctx: UiContext): ViewController {
   let dragging = false;
   let dragEl: HTMLElement | null = null;
   let dragId: string | null = null;
+  let dragHandle: HTMLElement | null = null;
+  let dragPointerId = -1;
+
+  // ドラッグ中の move/up は window で受ける（ノードを DOM 移動するとポインタキャプチャが外れて
+  // 要素ローカルだと以降の move/up を取りこぼし、先頭まで動かせなくなるため）。
+  function endDrag(): void {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
+    if (dragHandle && dragPointerId !== -1) {
+      try {
+        dragHandle.releasePointerCapture(dragPointerId);
+      } catch {
+        /* 既に解放済みなら無視 */
+      }
+    }
+    dragHandle = null;
+    dragPointerId = -1;
+  }
 
   function onMove(e: PointerEvent): void {
     if (!dragEl) return;
+    // ボタン/指が離れていれば（up の取りこぼし対策）ドロップ確定する。これにより
+    // 「押していないのにカーソル移動だけで並び替わる」状態を防ぐ。
+    if (e.buttons === 0) {
+      onUp(e);
+      return;
+    }
     const y = e.clientY;
     const items = Array.from(list.querySelectorAll<HTMLElement>('.todo-item'));
     const isDone = dragEl.classList.contains('done');
@@ -173,16 +198,8 @@ export function createTaskListView(ctx: UiContext): ViewController {
     }
   }
 
-  function onUp(e: PointerEvent): void {
-    const handle = e.currentTarget as HTMLElement;
-    try {
-      handle.releasePointerCapture(e.pointerId);
-    } catch {
-      /* 既に解放済みなら無視 */
-    }
-    handle.removeEventListener('pointermove', onMove);
-    handle.removeEventListener('pointerup', onUp);
-    handle.removeEventListener('pointercancel', onUp);
+  function onUp(_e: PointerEvent): void {
+    endDrag();
     const el2 = dragEl;
     const id = dragId;
     dragEl = null;
@@ -218,16 +235,24 @@ export function createTaskListView(ctx: UiContext): ViewController {
     const handle = qs<HTMLButtonElement>(node, '.todo-drag-handle');
     handle.addEventListener('pointerdown', (e) => {
       if (currentState?.settings.sortBy !== 'manual') return; // 手動モード時のみ。
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return; // 主ボタンのみ。
       e.preventDefault();
+      if (dragging) endDrag(); // 念のため前のドラッグを後始末。
       dragging = true;
       dragEl = node;
       dragId = todo.id;
       node.classList.add('dragging');
-      handle.setPointerCapture(e.pointerId);
-      handle.addEventListener('pointermove', onMove);
-      handle.addEventListener('pointerup', onUp);
-      handle.addEventListener('pointercancel', onUp);
+      // タッチのスクロール奪取を防ぐためキャプチャは best-effort（move/up の正は window）。
+      dragHandle = handle;
+      dragPointerId = e.pointerId;
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch {
+        /* 未対応なら無視 */
+      }
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
     });
     return node;
   }

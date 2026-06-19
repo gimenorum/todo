@@ -30,6 +30,7 @@
 }
 
 input[type='text'],
+input[type='search'],
 input[type='date'],
 select,
 textarea,
@@ -39,6 +40,11 @@ textarea,
   border-radius: var(--radius);
   background: var(--surface);
   width: 100%;
+}
+/* 検索ボックスは追加欄と同じ見た目に（Safari のピル形を打ち消す）。 */
+input[type='search'] {
+  appearance: none;
+  -webkit-appearance: none;
 }
 textarea {
   resize: vertical;
@@ -108,14 +114,17 @@ input[type='date']::-webkit-date-and-time-value {
   gap: 6px;
 }
 .field-label {
+  flex: 0 0 auto;
   font-size: 13px;
   color: var(--muted);
 }
+/* ツールバー/絞り込みの select は内容幅で横並び（グローバルの width:100% を上書き）。 */
 .sort-select,
 .filter-category,
 .filter-priority,
 .filter-due {
-  padding: 6px 8px;
+  width: auto;
+  padding: 6px 28px 6px 8px;
 }
 .filter-toggle {
   display: inline-flex;

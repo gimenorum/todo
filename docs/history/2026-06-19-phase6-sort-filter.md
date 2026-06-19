@@ -35,3 +35,15 @@
   `tests/state/selectors.test.ts`・`actions.test.ts`・`tests/services/syncScheduler.test.ts`、
   設計 `docs/design/03,08,17,18`。
 - 検証: `npm run typecheck` / `lint` / `test`（205）/ `build` すべて緑。
+
+## 実機レビュー対応（同日・追補）
+動作確認で出た 4 点を修正:
+1. **ドラッグの後始末**: ノードを DOM 移動するとポインタキャプチャが外れ、以降の `pointermove`/`pointerup` を
+   要素ローカルで取りこぼしていた。→ move/up/cancel を **window で受ける** + `pointermove` で `e.buttons===0` なら
+   ドロップ確定するガードを追加。これで「押していないのにカーソル移動だけで並び替わる」現象を解消。
+2. **先頭へ移動できない**: 上記キャプチャ喪失で複数ステップ上方向（＝先頭まで）が止まっていた。window 化で解消。
+   タッチのスクロール奪取防止のためキャプチャは best-effort 併用（正は window）。
+3. **プルダウンが縦に見える**: グローバル `select { width:100% }` が原因。ツールバー/絞り込みの select を
+   `width:auto` にしてラベルと横並びに（`styles/components.css`）。
+4. **検索ボックスの見た目不一致**: `input[type='search']` を共通入力スタイルの対象に追加し、追加欄と同じ装飾に
+   （Safari のピル形は `appearance:none` で打ち消し）。
