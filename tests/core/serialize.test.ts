@@ -20,6 +20,7 @@ describe('serialize 決定性（ch.04 §4.1）', () => {
       tags: ['a', 'b'],
       notes: '',
       priority: 'high',
+      notifyBeforeMs: null,
       dueDate: null,
       done: false,
       title: 'T',

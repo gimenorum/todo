@@ -25,7 +25,8 @@ export interface Todo {
   id: Uuid;
   title: string;
   done: boolean;
-  dueDate: Millis | null;
+  dueDate: Millis | null;       // 期日（時刻含む。時刻未指定はローカル 00:00 / Issue #71）
+  notifyBeforeMs: number | null; // 期日の何 ms 前に通知するか（null=通知しない / Issue #71・ch.19）
   priority: Priority;
   notes: string;
   tags: string[];
@@ -43,7 +44,7 @@ export interface Todo {
 
 ```ts
 export type TodoField =
-  | 'title' | 'done' | 'dueDate' | 'priority' | 'notes' | 'tags' | 'deleted';
+  | 'title' | 'done' | 'dueDate' | 'notifyBeforeMs' | 'priority' | 'notes' | 'tags' | 'deleted';
 ```
 
 - `createdAt` … 作成時に固定で不変。マージ対象外。
@@ -109,6 +110,7 @@ export interface SyncResult {
 | `title` `notes` | `string` |
 | `done` `deleted` | `boolean` |
 | `dueDate` | `Millis \| null` |
+| `notifyBeforeMs` | `number \| null` |
 | `priority` | `Priority` |
 
 > `tags` は [04 §4.5](./04-sync-engine.md) の集合 3-way（`mergeSet`）で自動マージされ、`FieldConflict` には現れない。`SyncResult.picked` は [16](./16-testing.md) のテストが LCA 選択（base）を検証するために用いる。

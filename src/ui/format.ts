@@ -29,6 +29,23 @@ export function fromDateInputValue(value: string): Millis | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
+// <input type="time"> 用（Issue #71）。期日に任意の時刻を持たせる。
+// 「ローカル 00:00 ＝ 時刻未指定」とみなし空文字を返す（従来の日付のみデータと互換）。
+export function toTimeInputValue(ms: Millis | null): string {
+  if (ms === null) return '';
+  const d = new Date(ms);
+  if (d.getHours() === 0 && d.getMinutes() === 0) return '';
+  return formatTime(ms);
+}
+
+// 日付＋時刻（任意）を Millis に。date 空なら期日なし。time 空なら 00:00 を補完（ローカル）。
+export function fromDateTimeInputValues(date: string, time: string): Millis | null {
+  if (!date) return null;
+  const t = time || '00:00';
+  const ms = Date.parse(`${date}T${t}:00`);
+  return Number.isNaN(ms) ? null : ms;
+}
+
 // 入力タグ文字列（スペース/カンマ区切り）→ 正規化済み配列（重複・空を除去）。
 export function parseTags(value: string): string[] {
   const seen = new Set<string>();

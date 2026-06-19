@@ -19,6 +19,8 @@ export const META_KEY = {
   conflicts: 'conflicts', // 未解決の競合の永続（リロードで消えないように / Issue #26）
   // 解決済みだがリモートのマーカー削除がまだ確認できていない todoId 集合（確認付きリトライ / Issue #29）。
   pendingConflictDeletes: 'pendingConflictDeletes',
+  // 通知済み記録（端末ローカル・非同期対象 / Issue #71）。Record<Uuid, Millis>（通知した fireAt）。
+  notifiedFires: 'notifiedFires',
 } as const;
 
 // settings store 内の単一レコードキー。
@@ -51,6 +53,20 @@ export const DEFAULT_SETTINGS: DeviceSettings = {
   filter: { ...DEFAULT_FILTER },
   connectedProvider: 'none',
 };
+
+// 期日が近づいたら通知（Issue #71）。「期日の何ミリ秒前に通知するか」の選択肢。
+// null=通知しない（既定）。5 分刻み（5〜55 分）→ 1 時間刻み（1〜23 時間）→ 1 日刻み（1 日＝最大）。
+function buildNotifyOptions(): ReadonlyArray<readonly [number | null, string]> {
+  const out: Array<readonly [number | null, string]> = [[null, '通知しない']];
+  for (let m = 5; m <= 55; m += 5) out.push([m * 60_000, `${m}分前`]);
+  for (let h = 1; h <= 23; h += 1) out.push([h * 3_600_000, `${h}時間前`]);
+  out.push([86_400_000, '1日前']);
+  return out;
+}
+export const NOTIFY_OPTIONS: ReadonlyArray<readonly [number | null, string]> = buildNotifyOptions();
+
+// 通知スケジューラの定期チェック間隔（Issue #71 / ch.19）。
+export const NOTIFY_CHECK_INTERVAL_MS = 30_000; // 30 秒
 
 // レスポンシブ切替（~768px / ch.08）。styles のメディアクエリと一致させる。
 export const BREAKPOINT_PX = 768;

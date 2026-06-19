@@ -112,6 +112,28 @@ describe('order の最近性マージ（Phase 6・競合化しない）', () => 
   });
 });
 
+describe('notifyBeforeMs の 3-way（通知タイミングも同期対象 / Issue #71）', () => {
+  it('片側だけ変更 → 自動採用（競合なし）', () => {
+    const base = makeTodo({ id: 'x', notifyBeforeMs: null });
+    const left = makeTodo({ id: 'x', notifyBeforeMs: 3_600_000, version: 2 });
+    const right = makeTodo({ id: 'x', notifyBeforeMs: null });
+    const res = mergeTodo(base, left, right);
+    expect(res.todo?.notifyBeforeMs).toBe(3_600_000);
+    expect(res.conflicts).toEqual([]);
+  });
+
+  it('両側が別値に変更 → 競合（暫定 left）', () => {
+    const base = makeTodo({ id: 'x', notifyBeforeMs: null });
+    const left = makeTodo({ id: 'x', notifyBeforeMs: 300_000, version: 2 });
+    const right = makeTodo({ id: 'x', notifyBeforeMs: 86_400_000, version: 2 });
+    const res = mergeTodo(base, left, right);
+    expect(res.todo?.notifyBeforeMs).toBe(300_000); // 暫定 left
+    expect(res.conflicts).toEqual([
+      { todoId: 'x', field: 'notifyBeforeMs', base: null, left: 300_000, right: 86_400_000 },
+    ]);
+  });
+});
+
 describe('merge3NoBase フォールバック（ch.04 §4.5）', () => {
   it('base 不在は (version 大) で side を採用', () => {
     const left = seedSnapshot([makeTodo({ id: 'x', title: 'L', version: 2 })]);

@@ -21,6 +21,7 @@ function asTodo(v: unknown, i: number): Todo {
   if (typeof title !== 'string') throw new Error(`タスク[${i}] の title が不正です。`);
   const priority = PRIORITIES.includes(v.priority as Priority) ? (v.priority as Priority) : 'none';
   const dueDate = typeof v.dueDate === 'number' ? v.dueDate : null;
+  const notifyBeforeMs = typeof v.notifyBeforeMs === 'number' ? v.notifyBeforeMs : null;
   const tags = Array.isArray(v.tags) ? v.tags.filter((t): t is string => typeof t === 'string') : [];
   const num = (x: unknown, d: number): number => (typeof x === 'number' ? x : d);
   return {
@@ -28,6 +29,7 @@ function asTodo(v: unknown, i: number): Todo {
     title,
     done: v.done === true,
     dueDate,
+    notifyBeforeMs,
     priority,
     notes: typeof v.notes === 'string' ? v.notes : '',
     tags,

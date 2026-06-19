@@ -15,7 +15,7 @@
 | 3 | `v0.3.0` | `feature/google-drive` | 05(Google Drive) | Drive を 2 つ目の保存先に（同一エンジン/IF）。一覧の遅延整合でも fork をマージで吸収 |
 | 4 | `v0.4.0` | `feature/conflict-ui` | 10(WinMerge ライク解決画面) | 競合解決画面。Phase 2 の暫定解決を置換 |
 | 5 | `v1.0.0` | `feature/export-import` | 13(エクスポート/インポート), 09(データ section) | エクスポート/インポート。コア一通り揃い**最初の安定版** |
-| 6（任意） | `v1.1.0`… | `feature/<名前>` | 14(暗号化), 05(S3/WebDAV), 04(GC/squash), 03+08(order D&D), 08(多言語) | 各機能ごと。MINOR を上げる |
+| 6（任意） | `v1.1.0`… | `feature/<名前>` | 14(暗号化), 05(S3/WebDAV), 04(GC/squash), 03+08(order D&D), 08(多言語), 19(期日リマインド通知) | 各機能ごと。MINOR を上げる |
 
 > GitHub 上のリリース種別: `v0.x.y`（Phase 0–4）は**プレリリース**、`v1.0.0`（Phase 5）から**正式リリース**（タグのメジャーで自動判定。詳細は [15 §15.4](./15-build-deploy-ci.md)）。
 

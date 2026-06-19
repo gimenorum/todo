@@ -9,6 +9,7 @@ export function makeTodo(partial: Partial<Todo> & { id: Uuid }): Todo {
     title: partial.title ?? '',
     done: partial.done ?? false,
     dueDate: partial.dueDate ?? null,
+    notifyBeforeMs: partial.notifyBeforeMs ?? null,
     priority: partial.priority ?? 'none',
     notes: partial.notes ?? '',
     tags: partial.tags ?? [],

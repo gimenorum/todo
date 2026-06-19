@@ -83,6 +83,38 @@ input[type='date']::-webkit-date-and-time-value {
   margin: 0;
   min-height: 1.5em;
 }
+/* 期日の日付＋時刻（時刻は任意）を 1 行に（Issue #71）。日付を伸ばし時刻は内容幅。 */
+.due-datetime {
+  display: flex;
+  gap: 8px;
+}
+.due-datetime > .f-due {
+  flex: 1;
+  min-width: 0;
+}
+.due-datetime > .f-due-time {
+  width: auto;
+  flex: 0 0 auto;
+}
+/* フィールド補足テキスト（通知の制約・権限案内など / Issue #71）。 */
+.field-help {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field-help p {
+  margin: 0;
+}
+.field-help-warn {
+  color: var(--danger);
+}
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  align-self: flex-start;
+}
 
 /* 追加フォーム */
 .add-todo {

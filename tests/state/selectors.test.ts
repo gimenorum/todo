@@ -19,6 +19,7 @@ function todo(p: Partial<Todo>): Todo {
     title: p.title ?? '',
     done: p.done ?? false,
     dueDate: p.dueDate ?? null,
+    notifyBeforeMs: p.notifyBeforeMs ?? null,
     priority: p.priority ?? 'none',
     notes: p.notes ?? '',
     tags: p.tags ?? [],

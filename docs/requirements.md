@@ -54,7 +54,7 @@
 - DOM 生成は文字列連結でなく `<template>` クローン。ユーザー由来テキストは `textContent` で挿入し `innerHTML` は使わない。
 
 ## データモデル
-- TODO 項目：`{ id: UUID, title: string, done: boolean, dueDate: number|null, priority: 'none'|'low'|'med'|'high', notes: string, tags: string[], order: string(フラクショナルインデックス), createdAt: number, updatedAt: number, deleted: boolean(tombstone), version: number }`。編集のたびに version をインクリメント。
+- TODO 項目：`{ id: UUID, title: string, done: boolean, dueDate: number|null(時刻含む・未指定はローカル0:00), notifyBeforeMs: number|null(期日の何ms前に通知/null=通知しない / Issue #71), priority: 'none'|'low'|'med'|'high', notes: string, tags: string[], order: string(フラクショナルインデックス), createdAt: number, updatedAt: number, deleted: boolean(tombstone), version: number }`。編集のたびに version をインクリメント。
 - `order` は手動並べ替えを後から足すための予約フィールド。v1 は期日/作成順で自動ソートし使わない。
 - スナップショット：TODO 項目集合。内容アドレス指定で保存。
 - コミットオブジェクト：`{ parents: string[], snapshot: string, timestamp: number, deviceId: string }`。

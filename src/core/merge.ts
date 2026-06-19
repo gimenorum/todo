@@ -12,6 +12,7 @@ const CONTENT_FIELDS: readonly TodoField[] = [
   'title',
   'done',
   'dueDate',
+  'notifyBeforeMs',
   'priority',
   'notes',
   'tags',
@@ -167,6 +168,9 @@ function assignField(todo: Todo, field: TodoField, value: unknown): void {
       break;
     case 'dueDate':
       todo.dueDate = value as number | null;
+      break;
+    case 'notifyBeforeMs':
+      todo.notifyBeforeMs = value as number | null;
       break;
     case 'priority':
       todo.priority = value as Todo['priority'];

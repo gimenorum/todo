@@ -19,7 +19,8 @@ export interface Todo {
   id: Uuid;
   title: string;
   done: boolean;
-  dueDate: Millis | null;
+  dueDate: Millis | null; // 期日（時刻含む / 時刻未指定はローカル 00:00。Issue #71）
+  notifyBeforeMs: number | null; // 期日の何ミリ秒前に通知するか（null=通知しない / Issue #71）
   priority: Priority;
   notes: string;
   tags: string[];
@@ -35,6 +36,7 @@ export type TodoField =
   | 'title'
   | 'done'
   | 'dueDate'
+  | 'notifyBeforeMs'
   | 'priority'
   | 'notes'
   | 'tags'

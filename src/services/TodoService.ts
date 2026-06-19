@@ -6,14 +6,23 @@ import type { Todo, Uuid } from '../model/types';
 // Phase 0 はローカル永続のみ（同期は Phase 1+ で services に追加）。
 
 export type TodoDraft = Pick<Todo, 'title'> &
-  Partial<Pick<Todo, 'done' | 'dueDate' | 'priority' | 'notes' | 'tags' | 'order'>>;
+  Partial<Pick<Todo, 'done' | 'dueDate' | 'notifyBeforeMs' | 'priority' | 'notes' | 'tags' | 'order'>>;
 
 export type TodoPatch = Partial<
-  Pick<Todo, 'title' | 'done' | 'dueDate' | 'priority' | 'notes' | 'tags' | 'deleted' | 'order'>
+  Pick<
+    Todo,
+    'title' | 'done' | 'dueDate' | 'notifyBeforeMs' | 'priority' | 'notes' | 'tags' | 'deleted' | 'order'
+  >
 >;
 
+// 旧レコード（notifyBeforeMs を持たない）を安全に補完する（Issue #71）。
+// 直列化は undefined を落とすため、読み出し・materialize 時に常に null 以上へ正規化する。
+export function withNotifyDefault(t: Todo): Todo {
+  return (t.notifyBeforeMs ?? null) === t.notifyBeforeMs ? t : { ...t, notifyBeforeMs: null };
+}
+
 export async function listAll(): Promise<Todo[]> {
-  return todoStore.getAllTodos();
+  return (await todoStore.getAllTodos()).map(withNotifyDefault);
 }
 
 export async function createTodo(draft: TodoDraft): Promise<Todo> {
@@ -23,6 +32,7 @@ export async function createTodo(draft: TodoDraft): Promise<Todo> {
     title: draft.title,
     done: draft.done ?? false,
     dueDate: draft.dueDate ?? null,
+    notifyBeforeMs: draft.notifyBeforeMs ?? null,
     priority: draft.priority ?? 'none',
     notes: draft.notes ?? '',
     tags: draft.tags ?? [],

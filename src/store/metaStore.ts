@@ -60,3 +60,15 @@ export async function setPendingConflictDeletes(ids: Uuid[]): Promise<void> {
   const db = await getDb();
   await db.put(STORE.meta, ids, META_KEY.pendingConflictDeletes);
 }
+
+// 通知済み記録（Issue #71 / ch.19）。todoId → 直近に通知した fireAt（期日−リード）。
+// 端末ローカルのみ（同期しない）。fireAt が変われば（期日/リード変更）再通知できる。
+export async function getNotifiedFires(): Promise<Record<Uuid, Millis>> {
+  const db = await getDb();
+  return ((await db.get(STORE.meta, META_KEY.notifiedFires)) as Record<Uuid, Millis> | undefined) ?? {};
+}
+
+export async function setNotifiedFires(map: Record<Uuid, Millis>): Promise<void> {
+  const db = await getDb();
+  await db.put(STORE.meta, map, META_KEY.notifiedFires);
+}

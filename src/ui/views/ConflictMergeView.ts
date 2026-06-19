@@ -3,8 +3,12 @@ import type { UiContext, ViewController } from '../context';
 import { el } from '../dom';
 import { findTodo } from '../../state/selectors';
 import { formatDate, fromDateInputValue, parseTags, toDateInputValue } from '../format';
-import { PRIORITIES, PRIORITY_LABEL } from '../../model/constants';
+import { NOTIFY_OPTIONS, PRIORITIES, PRIORITY_LABEL } from '../../model/constants';
 import { renderTextDiff } from '../components/TextDiff';
+
+// 通知タイミング（notifyBeforeMs）の値↔ラベル（Issue #71）。
+const notifyLabelOf = (ms: number | null): string =>
+  NOTIFY_OPTIONS.find(([v]) => v === ms)?.[1] ?? `${String(ms)}ms`;
 
 // 競合解決 UI（WinMerge ライク / ch.10 §10.2・Phase 4）。
 // 左=オンライン / 右=保留中 の 2 ペインを項目単位に並べ、選択 or 直接編集で解決する。
@@ -19,6 +23,7 @@ const FIELD_LABEL: Record<TodoField, string> = {
   title: 'タイトル',
   done: '完了',
   dueDate: '期日',
+  notifyBeforeMs: '通知',
   priority: '優先度',
   notes: 'メモ',
   tags: 'タグ',
@@ -26,12 +31,20 @@ const FIELD_LABEL: Record<TodoField, string> = {
 };
 
 // 一致表示する内容フィールド（競合していないものを muted で並べる / §10.2）。
-const AGREE_FIELDS: readonly TodoField[] = ['title', 'done', 'dueDate', 'priority', 'notes', 'tags'];
+const AGREE_FIELDS: readonly TodoField[] = [
+  'title',
+  'done',
+  'dueDate',
+  'notifyBeforeMs',
+  'priority',
+  'notes',
+  'tags',
+];
 
 // 解決アクションに渡す patch（services の TodoPatch と構造同一。ui→services 依存を持たないため
 // model/types の Todo からローカル定義する / 依存方向 ch.01）。
 type MergePatch = Partial<
-  Pick<Todo, 'title' | 'done' | 'dueDate' | 'priority' | 'notes' | 'tags' | 'deleted'>
+  Pick<Todo, 'title' | 'done' | 'dueDate' | 'notifyBeforeMs' | 'priority' | 'notes' | 'tags' | 'deleted'>
 >;
 
 export type EditMode = 'left' | 'right' | 'edit';
@@ -46,6 +59,7 @@ function showValue(field: TodoField, value: unknown): string {
   if (field === 'deleted') return value ? '削除' : '有効';
   if (field === 'dueDate')
     return value === null || value === undefined ? '(なし)' : formatDate(value as number);
+  if (field === 'notifyBeforeMs') return notifyLabelOf((value as number | null) ?? null);
   if (field === 'priority') return PRIORITY_LABEL[value as Priority] ?? String(value);
   if (field === 'tags') {
     const arr = Array.isArray(value) ? (value as string[]) : [];
@@ -58,6 +72,7 @@ function showValue(field: TodoField, value: unknown): string {
 // edit 入力の初期文字列（left 値を入力欄の形式へ）。
 function editSeed(field: TodoField, left: unknown): string {
   if (field === 'dueDate') return toDateInputValue((left as number | null) ?? null);
+  if (field === 'notifyBeforeMs') return left === null || left === undefined ? '' : String(left);
   if (field === 'tags') return Array.isArray(left) ? (left as string[]).join(' ') : '';
   if (field === 'priority') return String(left ?? 'none');
   return left === null || left === undefined ? '' : String(left);
@@ -68,6 +83,8 @@ export function parseFieldInput(field: TodoField, value: string): unknown {
   switch (field) {
     case 'dueDate':
       return fromDateInputValue(value);
+    case 'notifyBeforeMs':
+      return value === '' ? null : Number(value);
     case 'tags':
       return parseTags(value);
     case 'priority':
@@ -95,6 +112,9 @@ function assignPatch(patch: MergePatch, field: TodoField, value: unknown): void 
       break;
     case 'dueDate':
       patch.dueDate = value as number | null;
+      break;
+    case 'notifyBeforeMs':
+      patch.notifyBeforeMs = value as number | null;
       break;
     case 'priority':
       patch.priority = value as Priority;
@@ -177,6 +197,17 @@ export function createConflictMergeView(ctx: UiContext, id: Uuid): ViewControlle
       for (const p of PRIORITIES) {
         const opt = el('option', { text: PRIORITY_LABEL[p], attrs: { value: p } });
         if (p === left) opt.selected = true;
+        s.append(opt);
+      }
+      return s;
+    }
+    if (field === 'notifyBeforeMs') {
+      const s = el('select', { class: 'merge-input' });
+      const seed = editSeed(field, left);
+      for (const [ms, label] of NOTIFY_OPTIONS) {
+        const value = ms === null ? '' : String(ms);
+        const opt = el('option', { text: label, attrs: { value } });
+        if (value === seed) opt.selected = true;
         s.append(opt);
       }
       return s;

@@ -14,6 +14,9 @@ import { setupInstall } from './pwa/installPrompt';
 import * as todoSvc from './services/TodoService';
 import * as settingsSvc from './services/SettingsService';
 import * as issueReporter from './services/issueReporter';
+import { createNotificationScheduler } from './services/NotificationScheduler';
+import { getPermission, showNotification } from './services/notify';
+import { getNotifiedFires, setNotifiedFires } from './store/metaStore';
 
 // グローバルエラーを記録する（送信はせず「問題を報告」時の本文素材にするだけ / Issue #57）。
 window.addEventListener('error', (e: ErrorEvent) => {
@@ -73,17 +76,31 @@ async function bootstrap(): Promise<void> {
   mount.replaceChildren(shell.el);
   mount.removeAttribute('aria-busy');
 
-  // setState → render 単一経路（ch.07）。
-  store.subscribe((state) => shell.update(state));
+  // 期日が近づいたら通知するスケジューラ（Issue #71 / ch.19）。サーバなし＝アプリ稼働中のみ。
+  const notifications = createNotificationScheduler({
+    getTodos: () => store.getState().todos,
+    notify: (title, options) => void showNotification(title, options),
+    getPermission,
+    loadNotified: getNotifiedFires,
+    saveNotified: setNotifiedFires,
+  });
+
+  // setState → render 単一経路（ch.07）。タスク変更時は通知チェックも回す。
+  store.subscribe((state) => {
+    shell.update(state);
+    notifications.check();
+  });
   shell.update(store.getState());
 
   startRouter(store);
   registerServiceWorker();
+  notifications.start();
 
   // 同期トリガのうち DOM 由来（前面退避・online 復帰）は root で購読し scheduler フックへ渡す
-  //（services は DOM 非依存 / ch.11）。
+  //（services は DOM 非依存 / ch.11）。前面復帰時は通知のキャッチアップも行う。
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) runtime.onVisibilityHidden();
+    else notifications.check();
   });
   window.addEventListener('online', () => runtime.onOnline());
 

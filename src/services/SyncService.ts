@@ -122,7 +122,9 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
 
   function buildOutcome(snap: Snapshot, lastSyncAt: number): SyncOutcome {
     const conflictIds = new Set(activeConflicts.map((c) => c.todoId));
-    const todos = Object.values(snap.todos).filter((t) => !t.deleted);
+    const todos = Object.values(snap.todos)
+      .filter((t) => !t.deleted)
+      .map(todoSvc.withNotifyDefault); // 旧データの notifyBeforeMs を null 補完（Issue #71）
     const perTodoStatus: Record<Uuid, TodoSyncStatus> = {};
     for (const t of todos) perTodoStatus[t.id] = conflictIds.has(t.id) ? 'conflict' : 'synced';
     return { todos, perTodoStatus, conflicts: activeConflicts, lastSyncAt };
@@ -139,7 +141,8 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
     await persistLocalState(local, before);
 
     // materialize: マージ結果を todos ストアへ（tombstone 含む）。表示の正はローカル todos。
-    await todoStore.putTodos(Object.values(res.mergedSnapshot.todos));
+    // 旧データ由来で notifyBeforeMs を欠く todo は null 補完してから書き込む（Issue #71）。
+    await todoStore.putTodos(Object.values(res.mergedSnapshot.todos).map(todoSvc.withNotifyDefault));
 
     // --- 共有マーカーの同期（Issue #29）。順序が重要 ---
     // 1) 保留削除を確認付きで再送。リモートに到達して成功（throw しない）todoId だけ集合から外す。
