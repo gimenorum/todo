@@ -19,6 +19,10 @@ export interface SyncBridge {
   resolveConflict(id: Uuid, patch: TodoPatch): Promise<void>;
   reloadFromLocal(): Promise<void>;
   applyIntervalChange(): void; // 設定変更時に interval を貼り直す
+  // ローカルデータの削除系（Issue #38）。いずれも最後に再読込して状態を作り直す。
+  deleteLocalData(): Promise<void>; // ① 削除のみ（能動的な再取得はしない）
+  refetchFromCloud(): Promise<void>; // ② 削除して取り直す（事前 best-effort push）
+  factoryReset(): Promise<void>; // ③ 連携解除＋全消し＋設定既定化
 }
 
 export interface Actions {
@@ -32,6 +36,10 @@ export interface Actions {
   disconnect(): Promise<void>;
   syncNow(): Promise<void>;
   resolveConflict(id: Uuid, patch: TodoPatch): Promise<void>;
+  // ローカルデータの削除系（Issue #38）。
+  deleteLocalData(): Promise<void>;
+  refetchFromCloud(): Promise<void>;
+  factoryReset(): Promise<void>;
   // エクスポート/インポート（Phase 5 / ch.13）。
   exportData(req: ExportRequest): Promise<FileDescriptor>;
   previewImport(text: string): ImportData; // パース＋検証のみ（UI が確認サマリに使う）
@@ -95,6 +103,18 @@ export function createActions(store: Store, bridge: SyncBridge): Actions {
 
     async resolveConflict(id, patch) {
       await bridge.resolveConflict(id, patch);
+    },
+
+    async deleteLocalData() {
+      await bridge.deleteLocalData();
+    },
+
+    async refetchFromCloud() {
+      await bridge.refetchFromCloud();
+    },
+
+    async factoryReset() {
+      await bridge.factoryReset();
     },
 
     async exportData(req) {

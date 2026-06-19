@@ -8,6 +8,9 @@ import type { TodoPatch } from './services/TodoService';
 import { createSyncScheduler, type SyncScheduler } from './services/SyncScheduler';
 import { createBroadcast, type Broadcast } from './state/broadcast';
 import * as settingsSvc from './services/SettingsService';
+import * as settingsStore from './store/settingsStore';
+import { clearLocalData } from './store/resetStore';
+import { DEFAULT_SETTINGS } from './model/constants';
 import type { Clock, GlobalSyncStatus, Uuid } from './model/types';
 
 export interface SyncRuntime extends SyncBridge {
@@ -145,6 +148,40 @@ export function createSyncRuntime(store: Store): SyncRuntime {
 
     applyIntervalChange() {
       scheduler?.start();
+    },
+
+    // ① 削除のみ。能動的な再取得はしない（scheduler を止めてからクリア）。再読込後は連携が残るアプリ既定動作に委ねる。
+    async deleteLocalData() {
+      teardown();
+      await clearLocalData();
+      window.location.reload();
+    },
+
+    // ② 削除して取り直す。未送信のローカル変更を守るため事前に best-effort で push してからクリア。
+    //    再読込→startup→初回同期でクラウドから再構築される。
+    async refetchFromCloud() {
+      try {
+        await scheduler?.syncNow();
+      } catch {
+        /* オフライン/壊れは無視してクリアへ進む */
+      }
+      teardown();
+      await clearLocalData();
+      window.location.reload();
+    },
+
+    // ③ この端末を初期化。連携解除（トークン削除・未連携へ）＋全消し＋設定既定化。クラウド側は不変。
+    async factoryReset() {
+      try {
+        await scheduler?.syncNow();
+      } catch {
+        /* best-effort */
+      }
+      await settingsSvc.disconnect();
+      teardown();
+      await clearLocalData();
+      await settingsStore.saveSettings(DEFAULT_SETTINGS);
+      window.location.reload();
     },
 
     onVisibilityHidden() {
