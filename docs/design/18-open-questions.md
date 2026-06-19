@@ -15,6 +15,7 @@
 | 7 | tags のマージ | **集合 3-way**（追加=和・削除=反映）（[04 §4.5](./04-sync-engine.md)） |
 | 8 | 複数 LCA の tie-break | **`(timestamp, hash)` の全順序**で一意化（[04 §4.4](./04-sync-engine.md)） |
 | 9 | 同期既定値 | **pull 間隔 = 5 分／push デバウンス = 2 秒**（[11](./11-sync-triggers.md)・[03](./03-data-model.md)） |
+| 13 | 手動並べ替えの並び順同期（**Phase 6**） | **決定（2026-06-19）: `order`（フラクショナルインデックス）を同期する。フィールド競合にはせず最近性（recency）で確定**（[04 §4.5](./04-sync-engine.md) `pickOrder`）。並びモード（`DeviceSettings.sortMode`）は端末ごと＝同期しない。入力は **Pointer Events**（[08 §8.3](./08-routing-views.md)） |
 
 ## 18.2 未決（残）
 

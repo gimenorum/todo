@@ -19,7 +19,7 @@ function todo(p: Partial<Todo>): Todo {
     priority: p.priority ?? 'none',
     notes: p.notes ?? '',
     tags: p.tags ?? [],
-    order: '',
+    order: p.order ?? '',
     createdAt: p.createdAt ?? 0,
     updatedAt: p.updatedAt ?? 0,
     deleted: p.deleted ?? false,
@@ -64,6 +64,27 @@ describe('state/selectors', () => {
     const s = stateWith([todo({ id: 'a' }), todo({ id: 'b' })]);
     expect(findTodo(s, 'b')?.id).toBe('b');
     expect(findTodo(s, 'z')).toBeUndefined();
+  });
+
+  it('manual モードは done を保ちつつグループ内を order 昇順（Phase 6）', () => {
+    const base = stateWith([
+      todo({ id: 'c', order: 'm', createdAt: 1 }),
+      todo({ id: 'a', order: 'g', createdAt: 2 }),
+      todo({ id: 'doneItem', done: true, order: 'b', createdAt: 3 }),
+      todo({ id: 'b', order: 'i', createdAt: 4 }),
+    ]);
+    const s: State = { ...base, settings: { ...base.settings, sortMode: 'manual' } };
+    // 未完了は order 昇順（g<i<m）、完了は末尾。期日や作成順ではなく order で並ぶ。
+    expect(visibleTodos(s).map((t) => t.id)).toEqual(['a', 'b', 'c', 'doneItem']);
+  });
+
+  it('auto モードは order を無視して従来の自動整列のまま', () => {
+    const s = stateWith([
+      todo({ id: 'late', order: 'a', dueDate: 2000 }),
+      todo({ id: 'early', order: 'z', dueDate: 1000 }),
+    ]);
+    // sortMode は既定 auto。order が逆でも期日順。
+    expect(visibleTodos(s).map((t) => t.id)).toEqual(['early', 'late']);
   });
 });
 

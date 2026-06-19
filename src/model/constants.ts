@@ -39,6 +39,7 @@ export const DEFAULT_SETTINGS: DeviceSettings = {
   autoSyncMode: 'interval',
   autoSyncIntervalMs: 300_000, // 5 分
   sidebarCollapsed: false,
+  sortMode: 'auto',
   connectedProvider: 'none',
 };
 

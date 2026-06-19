@@ -26,3 +26,4 @@ export {
   type MergeResult,
 } from './merge';
 export { syncOnce, publishHead, MissingObjectError, type LocalState } from './sync';
+export { keyBetween, keysAfter } from './order';

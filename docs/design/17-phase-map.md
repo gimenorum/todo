@@ -19,6 +19,8 @@
 
 > GitHub 上のリリース種別: `v0.x.y`（Phase 0–4）は**プレリリース**、`v1.0.0`（Phase 5）から**正式リリース**（タグのメジャーで自動判定。詳細は [15 §15.4](./15-build-deploy-ci.md)）。
 
+> Phase 6 進捗: **手動並べ替え（`order` のフラクショナルインデックス＋D&D / 03+08）を実装**（`feature/manual-reorder` → `v1.1.0` 予定）。並び順は recency 同期（[04 §4.5](./04-sync-engine.md)）、入力は Pointer Events（[08 §8.3](./08-routing-views.md)）。残り（暗号化／S3·WebDAV／GC·squash／多言語）は未着手。
+
 ## 17.2 完了条件（要約）
 
 | Phase | 完了条件（受け入れ基準の対象） |

@@ -92,6 +92,26 @@ input[type='date']::-webkit-date-and-time-value {
   white-space: nowrap;
 }
 
+/* 並びモード・トグル（自動 ⇄ 手動 / Phase 6） */
+.list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.sort-toggle {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+}
+.sort-toggle[aria-pressed='true'] {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 /* 一覧 */
 .todo-list {
   list-style: none;
@@ -109,6 +129,31 @@ input[type='date']::-webkit-date-and-time-value {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+/* ドラッグハンドル（手動並べ替え時のみ表示 / Phase 6） */
+.todo-drag-handle {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  align-self: stretch;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none; /* タッチでスクロールせずドラッグ開始 */
+}
+.todo-list.manual .todo-drag-handle {
+  display: flex;
+}
+.todo-item.dragging {
+  opacity: 0.85;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  cursor: grabbing;
 }
 .todo-done {
   width: 20px;

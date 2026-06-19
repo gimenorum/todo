@@ -202,7 +202,7 @@ mergeTodo(b, l, r):
   out.version   = max(l.version, r.version)
   out.updatedAt = max(l.updatedAt, r.updatedAt)
   out.createdAt = b?.createdAt ?? min(l.createdAt, r.createdAt)
-  out.order     = l.order    // v1 未使用のため left 据え置き
+  out.order     = pickOrder(l, r)  // 手動並べ替え（Phase 6）: recency=(updatedAt,version)。空は非空優先。競合化しない
   return { todo: out, conflicts }
 
 // alive 側が base から内容（deleted 以外）を変えたか。base 不在は新規＝編集とみなす（安全側）
@@ -245,6 +245,7 @@ merge3NoBase(left, right):               // snapshot 全体に resolveNoBase を
 - **tags（配列）**（確定 / [18 #7](./18-open-questions.md)）: **集合 3-way**（`mergeSet`）。単純値比較だと並びの違いで無用な競合が出るため採らない。
 - **LCA tie-break**（確定 / [18 #8](./18-open-questions.md)）: 極大共通祖先を `(timestamp, hash)` の全順序で一意化（§4.4）。
 - **メタ（version/updatedAt）**: 競合対象にせず最大値を採る。タイブレーク専用。
+- **order（手動並べ替え / Phase 6）**: フィールド競合にせず**最近性（recency）= (updatedAt, version)** で確定（`pickOrder`）。片側が空文字なら非空側を採用。2 端末が同時に並べ替えても競合 UI は出さず、新しい操作を採用して単一順序へ収束する（データ消失なし）。`order` 値は内容アドレス指定の「値」に過ぎず、ハッシュ決定性（§4.1）を壊さない。
 
 ## 4.6 sync 本体と書き込み順序（sync.ts / services）
 

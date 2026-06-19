@@ -16,6 +16,7 @@ const manual: DeviceSettings = {
   autoSyncMode: 'manual',
   autoSyncIntervalMs: 300_000,
   sidebarCollapsed: false,
+  sortMode: 'auto',
   connectedProvider: 'dropbox',
 };
 const interval: DeviceSettings = { ...manual, autoSyncMode: 'interval', autoSyncIntervalMs: 1000 };

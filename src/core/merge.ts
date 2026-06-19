@@ -66,6 +66,17 @@ export function mergeSet(
   return Array.from(out).sort();
 }
 
+// order（手動並べ替え / Phase 6）は最近性で確定する。競合（FieldConflict）には出さない。
+// 片側が未設定（空文字）なら設定側を優先。両方設定済みなら (updatedAt, version) が新しい側。
+export function pickOrder(l: Todo, r: Todo): string {
+  if (l.order === r.order) return l.order;
+  if (l.order === '') return r.order;
+  if (r.order === '') return l.order;
+  if (r.updatedAt !== l.updatedAt) return r.updatedAt > l.updatedAt ? r.order : l.order;
+  if (r.version !== l.version) return r.version > l.version ? r.order : l.order;
+  return l.order; // 完全タイは left 据え置き（決定的）
+}
+
 export interface TodoMergeResult {
   todo: Todo | null; // null = どちらの先端にも存在しない（マージ結果から除外）
   conflicts: FieldConflict[];
@@ -91,7 +102,8 @@ export function mergeTodo(
     createdAt: b?.createdAt ?? Math.min(l.createdAt, r.createdAt),
     updatedAt: Math.max(l.updatedAt, r.updatedAt),
     version: Math.max(l.version, r.version),
-    order: l.order, // v1 未使用のため left 据え置き
+    // order は手動並べ替え（Phase 6）。フィールド競合にはせず最近性（recency）で確定する。
+    order: pickOrder(l, r),
   };
 
   // 1) 内容フィールド（deleted 以外）を 3-way マージ。

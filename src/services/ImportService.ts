@@ -84,6 +84,7 @@ export function sanitizeSettings(s: DeviceSettings): Partial<DeviceSettings> {
   if (s.autoSyncMode === 'manual' || s.autoSyncMode === 'interval') next.autoSyncMode = s.autoSyncMode;
   if (typeof s.autoSyncIntervalMs === 'number') next.autoSyncIntervalMs = s.autoSyncIntervalMs;
   if (typeof s.sidebarCollapsed === 'boolean') next.sidebarCollapsed = s.sidebarCollapsed;
+  if (s.sortMode === 'auto' || s.sortMode === 'manual') next.sortMode = s.sortMode;
   if (typeof s.language === 'string') next.language = s.language;
   return next;
 }

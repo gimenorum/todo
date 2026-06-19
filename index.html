@@ -19,6 +19,7 @@
     <!-- ui/dom.ts cloneTemplate() が複製する <template> 群（文字列連結による DOM 生成を禁止 / ch.07） -->
     <template id="tmpl-todo-item">
       <li class="todo-item" data-id="">
+        <button type="button" class="todo-drag-handle" aria-label="ドラッグして並べ替え" tabindex="-1">⠿</button>
         <input type="checkbox" class="todo-done" aria-label="完了" />
         <button type="button" class="todo-open">
           <span class="todo-title"></span>

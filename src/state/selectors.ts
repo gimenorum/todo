@@ -2,7 +2,7 @@ import type { State, Todo, TodoSyncStatus, Uuid } from '../model/types';
 
 // State からの派生（ch.07 §7.4）。再計算は単純に保つ（メモ化は必要時のみ）。
 
-// 表示順: 未完了 → 完了、その中で期日昇順（null は後ろ）、最後に作成日時昇順。
+// 自動並び（既定）: 未完了 → 完了、その中で期日昇順（null は後ろ）、最後に作成日時昇順。
 export function compareTodos(a: Todo, b: Todo): number {
   if (a.done !== b.done) return a.done ? 1 : -1;
   if (a.dueDate !== b.dueDate) {
@@ -13,8 +13,16 @@ export function compareTodos(a: Todo, b: Todo): number {
   return a.createdAt - b.createdAt;
 }
 
+// 手動並び（Phase 6）: 未完了 → 完了は維持し、グループ内は order 昇順（保険に createdAt）。
+export function compareByOrder(a: Todo, b: Todo): number {
+  if (a.done !== b.done) return a.done ? 1 : -1;
+  if (a.order !== b.order) return a.order < b.order ? -1 : 1;
+  return a.createdAt - b.createdAt;
+}
+
 export function visibleTodos(state: State): Todo[] {
-  return state.todos.filter((t) => !t.deleted).sort(compareTodos);
+  const cmp = state.settings.sortMode === 'manual' ? compareByOrder : compareTodos;
+  return state.todos.filter((t) => !t.deleted).sort(cmp);
 }
 
 export function findTodo(state: State, id: Uuid): Todo | undefined {

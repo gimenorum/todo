@@ -47,7 +47,7 @@ export type TodoField =
 ```
 
 - `createdAt` … 作成時に固定で不変。マージ対象外。
-- `order` … v1 未使用の予約。マージ対象外。
+- `order` … 手動並べ替え（**Phase 6**）のフラクショナルインデックス。`TodoField` には**含めず**（＝`FieldConflict` に出さない）、マージ時は**最近性（recency）= (updatedAt, version) で確定**する（→ [04 §4.5](./04-sync-engine.md)）。並べ替えの同時編集は競合扱いせず、新しい操作を採用（データ消失なし）。
 - `updatedAt` / `version` … **メタ情報**。フィールド競合の対象にはせず、LCA が取れない場合の **タイブレーク** に使う（→ [04 §4.5](./04-sync-engine.md)）。
 - `tags` … マージ対象だが**集合 3-way**で自動マージされ、**競合（`FieldConflict`）には現れない**（→ [04 §4.5](./04-sync-engine.md)・§3.4）。
 
@@ -137,6 +137,7 @@ export interface DeviceSettings {
   autoSyncMode: 'manual' | 'interval';
   autoSyncIntervalMs: number;          // interval のときのみ有効（既定 300_000 = 5 分 / 18-open-questions #9）
   sidebarCollapsed: boolean;           // PC サイドバー折り畳み（UI 設定）
+  sortMode: 'auto' | 'manual';         // 一覧の並び（auto=自動整列 / manual=手動並べ替え。Phase 6・端末ごと＝同期しない）
   connectedProvider: 'none' | 'dropbox' | 'gdrive';
   language?: string;                   // 後で
 }

@@ -6,10 +6,10 @@ import type { Todo, Uuid } from '../model/types';
 // Phase 0 はローカル永続のみ（同期は Phase 1+ で services に追加）。
 
 export type TodoDraft = Pick<Todo, 'title'> &
-  Partial<Pick<Todo, 'done' | 'dueDate' | 'priority' | 'notes' | 'tags'>>;
+  Partial<Pick<Todo, 'done' | 'dueDate' | 'priority' | 'notes' | 'tags' | 'order'>>;
 
 export type TodoPatch = Partial<
-  Pick<Todo, 'title' | 'done' | 'dueDate' | 'priority' | 'notes' | 'tags' | 'deleted'>
+  Pick<Todo, 'title' | 'done' | 'dueDate' | 'priority' | 'notes' | 'tags' | 'deleted' | 'order'>
 >;
 
 export async function listAll(): Promise<Todo[]> {
@@ -26,7 +26,7 @@ export async function createTodo(draft: TodoDraft): Promise<Todo> {
     priority: draft.priority ?? 'none',
     notes: draft.notes ?? '',
     tags: draft.tags ?? [],
-    order: '', // v1 未使用（予約）
+    order: draft.order ?? '', // 手動並べ替え用。未指定は '' （Phase 6・手動モード切替時にバックフィル）
     createdAt: now,
     updatedAt: now,
     deleted: false,

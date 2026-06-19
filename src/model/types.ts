@@ -23,7 +23,7 @@ export interface Todo {
   priority: Priority;
   notes: string;
   tags: string[];
-  order: string; // フラクショナルインデックス（v1 未使用・予約）
+  order: string; // フラクショナルインデックス（手動並べ替え / Phase 6・recency 同期・競合化しない）
   createdAt: Millis;
   updatedAt: Millis;
   deleted: boolean; // tombstone（物理削除しない）
@@ -106,6 +106,7 @@ export interface DeviceSettings {
   autoSyncMode: 'manual' | 'interval';
   autoSyncIntervalMs: number; // interval のときのみ有効（既定 300_000 = 5 分）
   sidebarCollapsed: boolean; // PC サイドバー折り畳み（UI 設定）
+  sortMode: 'auto' | 'manual'; // タスク一覧の並び（auto=自動整列 / manual=手動並べ替え。同期しない）
   connectedProvider: 'none' | 'dropbox' | 'gdrive';
   language?: string; // 後で
 }
