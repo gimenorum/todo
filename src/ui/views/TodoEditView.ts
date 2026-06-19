@@ -1,7 +1,7 @@
 import type { Priority, State, Uuid } from '../../model/types';
 import type { UiContext, ViewController } from '../context';
 import { el, qs } from '../dom';
-import { findTodo } from '../../state/selectors';
+import { findTodo, perTodoStatusOf, showsSyncUi } from '../../state/selectors';
 import { PRIORITIES, PRIORITY_LABEL } from '../../model/constants';
 import { fromDateInputValue, parseTags, toDateInputValue } from '../format';
 
@@ -15,6 +15,30 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
     el('h2', { class: 'view-title', text: 'タスクを編集' }),
   );
   root.append(header);
+
+  // 競合（要解決）のあるタスクは、気づかず編集して（Git 的に）ツリーが伸びる懸念があるため、
+  // 編集画面でも「同期エラー」を明示し解決画面へ誘導する（Issue #45）。編集自体はブロックしない。
+  const conflictNote = el('div', {
+    class: 'edit-conflict-note',
+    attrs: { role: 'alert', hidden: '' },
+  });
+  const resolveBtn = el('button', {
+    class: 'btn btn-danger',
+    text: '同期エラーを解決',
+    attrs: { type: 'button' },
+  });
+  resolveBtn.addEventListener('click', () => ctx.navigate({ name: 'merge', id }));
+  conflictNote.append(
+    el('span', { text: 'このタスクは同期エラーがあります。編集前に解決してください。' }),
+    resolveBtn,
+  );
+  root.append(conflictNote);
+
+  // 表示判定は一覧（TaskListView）の per-todo 同期ステータスと同条件。
+  const refreshConflict = (s: State): void => {
+    conflictNote.hidden = !(showsSyncUi(s) && perTodoStatusOf(s, id) === 'conflict');
+  };
+  refreshConflict(ctx.store.getState());
 
   const current = findTodo(ctx.store.getState(), id);
   if (!current) {
@@ -91,8 +115,9 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
 
   return {
     el: root,
-    update(_state: State) {
-      // Phase 0 は再描画しない（フォーム編集中の入力を保持）。
+    update(state: State) {
+      // フォームは再描画しない（編集中の入力を保持）が、競合バナーの表示/非表示のみ反映する。
+      refreshConflict(state);
     },
   };
 }

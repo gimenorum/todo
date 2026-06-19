@@ -43,6 +43,24 @@ textarea,
 textarea {
   resize: vertical;
 }
+/* select は OS 依存の見た目（特に Mac Safari）を避け、自前の矢印で一貫表示にする（Issue #48）。 */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 7em;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23888' stroke-width='1.5' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+}
+/* 期日・優先度は中身相当の幅に収め、横幅いっぱいに伸ばさない（Issue #48）。 */
+.f-due,
+.f-priority {
+  width: auto;
+  max-width: 100%;
+  align-self: flex-start;
+}
 
 /* 追加フォーム */
 .add-todo {
@@ -191,6 +209,24 @@ textarea {
 .muted {
   color: var(--muted);
   font-size: 14px;
+}
+
+/* 編集画面の同期エラー（要解決）注意バナー＋解決導線（Issue #45）。 */
+.edit-conflict-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  color: var(--text);
+  font-size: 13px;
+}
+.edit-conflict-note .btn {
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 /* per-todo 同期ステータス・解決ボタン（ch.09 §9.3 / ch.10） */
