@@ -271,6 +271,17 @@ export function createSettingsView(ctx: UiContext): ViewController {
   const installBtn = el('button', { class: 'btn', text: 'インストール', attrs: { type: 'button' } });
   installBtn.addEventListener('click', () => void ctx.install.promptInstall());
   app.append(installLine, installBtn);
+
+  // 問題を報告（Issue #57）。GitHub の新規 Issue 画面を環境情報入りで開く（利用者名義・送信前に確認可）。
+  const reportBtn = el('button', { class: 'btn btn-secondary', text: '問題を報告', attrs: { type: 'button' } });
+  reportBtn.addEventListener('click', () => {
+    window.open(ctx.actions.reportProblemUrl(), '_blank', 'noopener');
+  });
+  app.append(
+    reportBtn,
+    el('p', { class: 'muted', text: '不具合の報告画面（GitHub）を開きます。送信前に内容を確認できます。' }),
+  );
+
   app.append(el('p', { class: 'muted', text: `バージョン ${__APP_VERSION__}` }));
   root.append(app);
 

@@ -5,6 +5,7 @@ import * as todoSvc from '../services/TodoService';
 import * as settingsSvc from '../services/SettingsService';
 import * as ExportService from '../services/ExportService';
 import * as ImportService from '../services/ImportService';
+import * as issueReporter from '../services/issueReporter';
 
 // UI が呼ぶアクション。services で永続してから setState する（ui→state→services→store / ch.01）。
 
@@ -44,6 +45,8 @@ export interface Actions {
   exportData(req: ExportRequest): Promise<FileDescriptor>;
   previewImport(text: string): ImportData; // パース＋検証のみ（UI が確認サマリに使う）
   commitImport(data: ImportData): Promise<void>; // タスクはマージ、設定は適用
+  // 不具合報告（Issue #57）。GitHub 新規 Issue 画面のプレフィル URL を返す（read-only）。
+  reportProblemUrl(): string;
 }
 
 export function createActions(store: Store, bridge: SyncBridge): Actions {
@@ -138,6 +141,15 @@ export function createActions(store: Store, bridge: SyncBridge): Actions {
 
     previewImport(text) {
       return ImportService.parse(text);
+    },
+
+    reportProblemUrl() {
+      return issueReporter.buildIssueUrl({
+        version: __APP_VERSION__,
+        route: store.getState().route.name,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        errors: issueReporter.recentErrors(),
+      });
     },
 
     async commitImport(data) {

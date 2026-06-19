@@ -13,6 +13,24 @@ import { registerServiceWorker } from './pwa/registerSW';
 import { setupInstall } from './pwa/installPrompt';
 import * as todoSvc from './services/TodoService';
 import * as settingsSvc from './services/SettingsService';
+import * as issueReporter from './services/issueReporter';
+
+// グローバルエラーを記録する（送信はせず「問題を報告」時の本文素材にするだけ / Issue #57）。
+window.addEventListener('error', (e: ErrorEvent) => {
+  issueReporter.recordError({
+    message: e.message || String(e.error),
+    stack: e.error instanceof Error ? e.error.stack : undefined,
+    source: 'error',
+  });
+});
+window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
+  const r: unknown = e.reason;
+  issueReporter.recordError({
+    message: r instanceof Error ? r.message : String(r),
+    stack: r instanceof Error ? r.stack : undefined,
+    source: 'unhandledrejection',
+  });
+});
 
 // アプリ全体の composition root（ch.01）。各レイヤをここで結線する。
 async function bootstrap(): Promise<void> {
@@ -75,9 +93,24 @@ async function bootstrap(): Promise<void> {
 
 void bootstrap().catch((err: unknown) => {
   console.error('[main] bootstrap failed', err);
+  const e = err instanceof Error ? err : new Error(String(err));
+  issueReporter.recordError({ message: e.message, stack: e.stack, source: 'bootstrap' });
   const mount = document.getElementById('app');
   if (mount) {
-    mount.textContent = '初期化に失敗しました。ページを再読み込みしてください。';
+    const p = document.createElement('p');
+    p.textContent = '初期化に失敗しました。ページを再読み込みしてください。';
+    // 致命的エラー画面からも報告できるようにする（Issue #57）。
+    const report = document.createElement('a');
+    report.href = issueReporter.buildIssueUrl({
+      version: __APP_VERSION__,
+      route: 'bootstrap',
+      userAgent: navigator.userAgent,
+      errors: issueReporter.recentErrors(),
+    });
+    report.target = '_blank';
+    report.rel = 'noopener';
+    report.textContent = 'この内容を報告';
+    mount.replaceChildren(p, report);
     mount.removeAttribute('aria-busy');
   }
 });
