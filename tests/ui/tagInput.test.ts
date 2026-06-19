@@ -1,0 +1,151 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { createTagInput, filterTags } from '../../src/ui/tagInput';
+
+describe('filterTags（Issue #65）', () => {
+  it('付与済みを除外し、query で大小無視の部分一致', () => {
+    const all = ['work', 'workout', 'home', 'buy'];
+    expect(filterTags(all, [], 'wor')).toEqual(['work', 'workout']);
+    expect(filterTags(all, ['work'], 'wo')).toEqual(['workout']);
+  });
+  it('空 query は付与済み以外の全件（最大件数）', () => {
+    expect(filterTags(['a', 'b', 'c'], ['b'], '')).toEqual(['a', 'c']);
+    expect(filterTags(['a', 'b', 'c'], [], '', 2)).toEqual(['a', 'b']);
+  });
+});
+
+describe('createTagInput DOM（jsdom）', () => {
+  let api: ReturnType<typeof createTagInput>;
+  let root: HTMLElement;
+  let text: HTMLInputElement;
+
+  function setup(initial: string[], candidates: string[]): void {
+    document.body.innerHTML = '';
+    api = createTagInput(initial, () => candidates);
+    root = api.el;
+    document.body.append(root);
+    text = root.querySelector('.tag-input-text') as HTMLInputElement;
+  }
+  function chips(): string[] {
+    return Array.from(root.querySelectorAll('.tag-chip-label')).map((n) => n.textContent ?? '');
+  }
+  function options(): string[] {
+    return Array.from(root.querySelectorAll('.tag-suggest-option')).map((n) => n.textContent ?? '');
+  }
+
+  afterEach(() => api?.destroy());
+
+  it('初期タグがチップで表示され getTags に反映', () => {
+    setup(['home', 'buy'], ['home', 'buy', 'work']);
+    expect(chips()).toEqual(['home', 'buy']);
+    expect(api.getTags()).toEqual(['home', 'buy']);
+  });
+
+  it('テキスト＋Enter で新規タグを追加', () => {
+    setup([], ['work']);
+    text.value = 'newtag';
+    text.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(api.getTags()).toEqual(['newtag']);
+    expect(text.value).toBe('');
+  });
+
+  it('スペースで確定', () => {
+    setup([], []);
+    text.value = 'abc';
+    text.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    expect(api.getTags()).toEqual(['abc']);
+  });
+
+  it('候補をクリックでチップ追加、付与済みは候補から消える', () => {
+    setup([], ['work', 'home']);
+    text.dispatchEvent(new Event('focus'));
+    expect(options()).toEqual(['work', 'home']);
+    const first = root.querySelector('.tag-suggest-option') as HTMLElement;
+    first.dispatchEvent(new Event('pointerdown'));
+    expect(api.getTags()).toEqual(['work']);
+    expect(options()).toEqual(['home']); // 残り候補
+  });
+
+  it('候補選択後に一瞬 blur してもフォーカスが残れば候補は開いたまま（残り候補を表示）', async () => {
+    setup([], ['work', 'home']);
+    text.focus();
+    text.dispatchEvent(new Event('focus'));
+    (root.querySelector('.tag-suggest-option') as HTMLElement).dispatchEvent(new Event('pointerdown'));
+    text.focus(); // 選択直後の再フォーカス（addTag 内と同等）
+    text.dispatchEvent(new Event('blur'));
+    await new Promise((r) => setTimeout(r, 5));
+    const list = root.querySelector('.tag-suggest-list') as HTMLElement;
+    expect(list.hidden).toBe(false);
+    expect(options()).toEqual(['home']);
+  });
+
+  it('入力で候補を絞り込む', () => {
+    setup([], ['work', 'workout', 'home']);
+    text.value = 'ho';
+    text.dispatchEvent(new Event('input'));
+    expect(options()).toEqual(['home']);
+  });
+
+  it('× でチップ削除', () => {
+    setup(['home', 'buy'], []);
+    const removeBtns = root.querySelectorAll('.tag-chip-remove');
+    (removeBtns[0] as HTMLElement).click(); // home を削除
+    expect(api.getTags()).toEqual(['buy']);
+  });
+
+  it('空入力で Backspace は末尾チップを削除', () => {
+    setup(['a', 'b'], []);
+    text.value = '';
+    text.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace' }));
+    expect(api.getTags()).toEqual(['a']);
+  });
+
+  it('重複タグは追加しない', () => {
+    setup(['home'], ['home']);
+    text.value = 'home';
+    text.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    expect(api.getTags()).toEqual(['home']);
+  });
+
+  it('input で区切り（スペース）が入ると確定（iOS/IME 経路）', () => {
+    setup([], []);
+    text.value = 'abc ';
+    text.dispatchEvent(new Event('input'));
+    expect(chips()).toEqual(['abc']);
+    expect(text.value).toBe('');
+  });
+
+  it('input で複数トークンは完成分を確定し末尾の打ちかけを残す', () => {
+    setup([], []);
+    text.value = 'a b c';
+    text.dispatchEvent(new Event('input'));
+    expect(chips()).toEqual(['a', 'b']);
+    expect(text.value).toBe('c');
+  });
+
+  it('getTags は未確定の入力テキストも含む（最後のタグを落とさない）', () => {
+    setup(['home'], []);
+    text.value = 'pending';
+    expect(api.getTags()).toEqual(['home', 'pending']);
+  });
+
+  it('IME 変換中は分割せず、確定後のスペースで分割', () => {
+    setup([], []);
+    text.dispatchEvent(new Event('compositionstart'));
+    text.value = 'かい';
+    text.dispatchEvent(new Event('input')); // 変換中 → 確定しない
+    expect(chips()).toEqual([]);
+    text.dispatchEvent(new Event('compositionend')); // 確定
+    text.value = 'かい ';
+    text.dispatchEvent(new Event('input')); // 区切りで分割
+    expect(chips()).toEqual(['かい']);
+    expect(text.value).toBe('');
+  });
+
+  it('IME 変換中の space keydown では確定しない', () => {
+    setup([], []);
+    text.dispatchEvent(new Event('compositionstart'));
+    text.value = 'abc';
+    text.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', isComposing: true }));
+    expect(chips()).toEqual([]);
+  });
+});

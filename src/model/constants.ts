@@ -1,4 +1,4 @@
-import type { DeviceSettings, Priority } from './types';
+import type { DeviceSettings, ListFilter, Priority } from './types';
 
 // IndexedDB（ch.06）。
 export const DB_NAME = 'todo-db';
@@ -34,11 +34,21 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
   high: '高',
 };
 
+// 一覧の絞り込み既定（無効＝全表示 / Phase 6）。クリアにも使う。
+export const DEFAULT_FILTER: ListFilter = {
+  due: 'all',
+  priority: 'all',
+  tag: null,
+  title: '',
+};
+
 // 端末ごと設定の既定値（ch.03 §3.6 / 18-open-questions #9）。
 export const DEFAULT_SETTINGS: DeviceSettings = {
   autoSyncMode: 'interval',
   autoSyncIntervalMs: 300_000, // 5 分
   sidebarCollapsed: false,
+  sortBy: 'due',
+  filter: { ...DEFAULT_FILTER },
   connectedProvider: 'none',
 };
 
