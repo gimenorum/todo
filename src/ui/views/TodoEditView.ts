@@ -3,8 +3,8 @@ import type { UiContext, ViewController } from '../context';
 import { el, qs } from '../dom';
 import { distinctTags, findTodo, perTodoStatusOf, showsSyncUi } from '../../state/selectors';
 import { PRIORITIES, PRIORITY_LABEL } from '../../model/constants';
-import { fromDateInputValue, parseTags, toDateInputValue } from '../format';
-import { attachTagSuggest } from '../tagSuggest';
+import { fromDateInputValue, toDateInputValue } from '../format';
+import { createTagInput } from '../tagInput';
 
 // 個別編集（全フィールド）。Phase 0 は単独編集のため、編集中の再描画はしない（入力保持）。
 export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
@@ -77,17 +77,10 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
   const dueprRow = el('div', { class: 'field-row' });
   dueprRow.append(dueField, prField);
 
+  // チップ式タグ入力（既存タグは候補から、未知タグは入力で追加 / Issue #65）。
   const tagField = el('div', { class: 'field' });
-  const tags = el('input', {
-    class: 'f-tags',
-    attrs: { type: 'text', placeholder: 'タグ（スペース区切り）' },
-  });
-  tags.value = current.tags.join(' ');
-  // 候補サジェスト（既存タグから選択 / Issue #65）。input は relative ラッパ直下に置く。
-  const tagWrap = el('div', { class: 'tag-suggest' });
-  tagWrap.append(tags);
-  tagField.append(el('label', { text: 'タグ' }), tagWrap);
-  const suggest = attachTagSuggest(tags, () => distinctTags(ctx.store.getState().todos));
+  const tagInput = createTagInput(current.tags, () => distinctTags(ctx.store.getState().todos));
+  tagField.append(el('label', { text: 'タグ' }), tagInput.el);
 
   const notesField = el('div', { class: 'field' });
   const notes = el('textarea', { class: 'f-notes', attrs: { rows: '4' } });
@@ -112,7 +105,7 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
         dueDate: fromDateInputValue(due.value),
         priority: priority.value as Priority,
         notes: notes.value,
-        tags: parseTags(tags.value),
+        tags: tagInput.getTags(),
       })
       .then(() => ctx.navigate({ name: 'tasks' }));
   });
@@ -129,7 +122,7 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
       refreshConflict(state);
     },
     destroy() {
-      suggest.destroy(); // タグサジェストの window/document リスナを後始末。
+      tagInput.destroy(); // タグ入力の window/document リスナを後始末。
     },
   };
 }

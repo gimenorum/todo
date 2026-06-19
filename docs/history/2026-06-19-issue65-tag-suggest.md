@@ -26,3 +26,13 @@
 - 追加: `src/ui/tagSuggest.ts`、`tests/ui/tagSuggest.test.ts`、本履歴ファイル。
 - 変更: `src/ui/views/TodoEditView.ts`、`styles/components.css`、`docs/design/08-routing-views.md`。
 - 検証: `npm run typecheck` / `lint` / `test`（218）/ `build` すべて緑。
+
+## 実機レビュー対応（その2）
+- **見た目**: 候補ポップアップがメモ欄（textarea）と同色で一続きに見えた → 一段持ち上げた面・青アクセント枠・強い影で浮いたカードに（`.tag-suggest-list`）。
+- **チップ式へ変更**: 「複数タグの付与に結局テキスト入力が要る」指摘を受け、タグ欄を**チップ式入力**に刷新（ユーザー承認済み）。
+  - 新規 `src/ui/tagInput.ts`（`createTagInput(initial, getCandidates)` → `el`/`getTags()`/`destroy()`、純粋 `filterTags`）。
+    付与済みはチップ（× 削除）、既存タグは候補タップ/↑↓+Enter、未知タグは入力＋Enter/スペース/カンマ、空入力 Backspace で末尾削除。候補ポップアップ（自動フリップ）は流用。
+  - `TodoEditView`: タグ欄を `createTagInput` に置換、保存は `tagInput.getTags()`。旧 `ui/tagSuggest.ts`＋テストは削除（未マージのため安全）。
+  - `styles/components.css`: `.tag-input`（入力風コンテナ・focus-within 枠）／`.tag-chip`（×）／`.tag-input-text`（枠なしで伸長・グローバル input 上書き）。
+  - テスト差し替え `tests/ui/tagInput.test.ts`（10 件）。設計 08 を更新。
+- 検証（最新）: `typecheck` / `lint` / `test`（215）/ `build` すべて緑。
