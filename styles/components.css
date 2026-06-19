@@ -54,8 +54,10 @@ select {
   background-position: right 12px center;
   background-size: 12px;
 }
-/* 期日・優先度は中身相当の幅に収め、横幅いっぱいに伸ばさない（Issue #48）。 */
-.f-due,
+/* 期日・優先度は中身相当の幅に収め、横幅いっぱいに伸ばさない（Issue #48）。
+   期日は共有の `input[type='date'] { width:100% }`（詳細度 0,1,1）に勝つよう
+   `input[type='date'].f-due`（0,2,1）で上書きする。 */
+input[type='date'].f-due,
 .f-priority {
   width: auto;
   max-width: 100%;
