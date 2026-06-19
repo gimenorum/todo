@@ -132,6 +132,37 @@ export interface State {
   route: Route; // 現在ルート（ch.08）
 }
 
+// ---- 3.8 エクスポート / インポート（Phase 5 / ch.13） ----
+// JSON 正本スキーマ。バージョン付き・全フィールド・無損失往復。tasks は tombstone/version 込みで保持する。
+export interface ExportFileV1 {
+  format: 'todo-pwa-export';
+  v: 1;
+  kind: 'tasks' | 'settings' | 'tasks+settings';
+  exportedAt: Millis;
+  tasks?: Todo[];
+  settings?: DeviceSettings;
+}
+
+// 受け渡し用ファイル記述子（DOM 非依存＝services は中身だけ作り、保存は ui/download が担う）。
+export interface FileDescriptor {
+  filename: string;
+  mime: string;
+  text: string;
+}
+
+// エクスポート要求（UI → actions）。'all' は tasks+settings（JSON 正本）。
+export interface ExportRequest {
+  kind: 'tasks' | 'settings' | 'all';
+  format: 'json' | 'md' | 'csv';
+}
+
+// パース済みインポートデータ（previewImport → commitImport）。
+export interface ImportData {
+  kind: 'tasks' | 'settings' | 'tasks+settings';
+  tasks?: Todo[];
+  settings?: DeviceSettings;
+}
+
 // ---- ルート（ch.08） ----
 export type Route =
   | { name: 'tasks' }
