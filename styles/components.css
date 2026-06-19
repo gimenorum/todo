@@ -30,6 +30,7 @@
 }
 
 input[type='text'],
+input[type='search'],
 input[type='date'],
 select,
 textarea,
@@ -39,6 +40,11 @@ textarea,
   border-radius: var(--radius);
   background: var(--surface);
   width: 100%;
+}
+/* 検索ボックスは追加欄と同じ見た目に（Safari のピル形を打ち消す）。 */
+input[type='search'] {
+  appearance: none;
+  -webkit-appearance: none;
 }
 textarea {
   resize: vertical;
@@ -92,6 +98,118 @@ input[type='date']::-webkit-date-and-time-value {
   white-space: nowrap;
 }
 
+/* 並び替え・絞り込み（Phase 6） */
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.sort-field,
+.filter-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0; /* 長いタグでも縮められるように（はみ出し防止）。 */
+  max-width: 100%;
+}
+.field-label {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--muted);
+}
+/* ツールバー/絞り込みの select は内容幅で横並び（グローバルの width:100% を上書き）。 */
+.sort-select,
+.filter-category,
+.filter-priority,
+.filter-due {
+  width: auto;
+  max-width: 100%;
+  padding: 6px 28px 6px 8px;
+}
+/* タグは任意文字列で長くなり得るため上限を設け、はみ出さず省略表示にする。 */
+.filter-category {
+  min-width: 0;
+  max-width: 11rem;
+  text-overflow: ellipsis;
+}
+.filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+}
+.filter-toggle[aria-expanded='true'] {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.filter-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.filter-search {
+  width: 100%;
+}
+.filter-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.filter-clear {
+  margin-left: auto;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+.filter-active {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  font-size: 13px;
+}
+.filter-active-clear {
+  padding: 4px 10px;
+  border: 1px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+
 /* 一覧 */
 .todo-list {
   list-style: none;
@@ -109,6 +227,31 @@ input[type='date']::-webkit-date-and-time-value {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+/* ドラッグハンドル（手動並べ替え時のみ表示 / Phase 6） */
+.todo-drag-handle {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  align-self: stretch;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none; /* タッチでスクロールせずドラッグ開始 */
+}
+.todo-list.manual .todo-drag-handle {
+  display: flex;
+}
+.todo-item.dragging {
+  opacity: 0.85;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  cursor: grabbing;
 }
 .todo-done {
   width: 20px;
@@ -142,9 +285,16 @@ input[type='date']::-webkit-date-and-time-value {
   flex-wrap: wrap;
   font-size: 12px;
   color: var(--muted);
+  min-width: 0;
 }
 .todo-meta:empty {
   display: none;
+}
+/* 長い 1 語のタグでも行からはみ出さず折り返す。 */
+.todo-tags {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .todo-priority:empty,
 .todo-due:empty,

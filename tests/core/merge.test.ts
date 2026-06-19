@@ -83,6 +83,35 @@ describe('mergeTodo の存在規則（ch.04 §4.5）', () => {
   });
 });
 
+describe('order の最近性マージ（Phase 6・競合化しない）', () => {
+  it('両端で order を別々に変更 → 新しい方（updatedAt 大）を採用・競合 0 件', () => {
+    const base = makeTodo({ id: 'x', order: 'i', updatedAt: 100, version: 1 });
+    const left = makeTodo({ id: 'x', order: 'g', updatedAt: 110, version: 2 });
+    const right = makeTodo({ id: 'x', order: 'p', updatedAt: 120, version: 2 });
+    const res = mergeTodo(base, left, right);
+    expect(res.todo?.order).toBe('p'); // right が新しい
+    expect(res.conflicts).toEqual([]); // order は競合に出さない
+  });
+
+  it('updatedAt 同値なら version 大を採用', () => {
+    const base = makeTodo({ id: 'x', order: 'i' });
+    const left = makeTodo({ id: 'x', order: 'g', updatedAt: 100, version: 2 });
+    const right = makeTodo({ id: 'x', order: 'p', updatedAt: 100, version: 5 });
+    const res = mergeTodo(base, left, right);
+    expect(res.todo?.order).toBe('p');
+    expect(res.conflicts).toEqual([]);
+  });
+
+  it('片側が未設定（空）なら設定側を採用', () => {
+    const base = makeTodo({ id: 'x' });
+    const left = makeTodo({ id: 'x', order: '', updatedAt: 200, version: 9 });
+    const right = makeTodo({ id: 'x', order: 'm', updatedAt: 100, version: 1 });
+    const res = mergeTodo(base, left, right);
+    expect(res.todo?.order).toBe('m');
+    expect(res.conflicts).toEqual([]);
+  });
+});
+
 describe('merge3NoBase フォールバック（ch.04 §4.5）', () => {
   it('base 不在は (version 大) で side を採用', () => {
     const left = seedSnapshot([makeTodo({ id: 'x', title: 'L', version: 2 })]);
