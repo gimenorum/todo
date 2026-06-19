@@ -17,19 +17,19 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
   root.append(header);
 
   // 競合（要解決）のあるタスクは、気づかず編集して（Git 的に）ツリーが伸びる懸念があるため、
-  // 編集画面でも「競合あり」を明示し競合解決画面へ誘導する（Issue #45）。編集自体はブロックしない。
+  // 編集画面でも「同期エラー」を明示し解決画面へ誘導する（Issue #45）。編集自体はブロックしない。
   const conflictNote = el('div', {
     class: 'edit-conflict-note',
     attrs: { role: 'alert', hidden: '' },
   });
   const resolveBtn = el('button', {
     class: 'btn btn-danger',
-    text: '競合を解決',
+    text: '同期エラーを解決',
     attrs: { type: 'button' },
   });
   resolveBtn.addEventListener('click', () => ctx.navigate({ name: 'merge', id }));
   conflictNote.append(
-    el('span', { text: 'このタスクには競合があります。編集前に解決してください。' }),
+    el('span', { text: 'このタスクは同期エラーがあります。編集前に解決してください。' }),
     resolveBtn,
   );
   root.append(conflictNote);

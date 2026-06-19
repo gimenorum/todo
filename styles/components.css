@@ -211,7 +211,7 @@ select {
   font-size: 14px;
 }
 
-/* 編集画面の競合（要解決）注意バナー＋解決導線（Issue #45）。 */
+/* 編集画面の同期エラー（要解決）注意バナー＋解決導線（Issue #45）。 */
 .edit-conflict-note {
   display: flex;
   align-items: center;
