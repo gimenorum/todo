@@ -38,6 +38,7 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
       placeholder: 'タグを追加…',
       'aria-label': 'タグを追加',
       autocomplete: 'off',
+      autocapitalize: 'none',
       role: 'combobox',
       'aria-expanded': 'false',
     },
@@ -53,6 +54,7 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
   let items: string[] = [];
   let active = -1;
   let open = false;
+  let composing = false; // IME 変換中（true の間は確定しない）
 
   function renderChips(): void {
     root.querySelectorAll('.tag-chip').forEach((n) => n.remove());
@@ -73,10 +75,21 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
     }
   }
 
+  // raw を分解して未追加のタグを足す（入力欄は触らない）。
+  function pushTags(raw: string): void {
+    let changed = false;
+    for (const t of parseTags(raw)) {
+      if (!tags.includes(t)) {
+        tags.push(t);
+        changed = true;
+      }
+    }
+    if (changed) renderChips();
+  }
+  // 入力テキスト/選択候補をタグ確定し、入力欄を空にして候補を更新。
   function addTag(raw: string): void {
-    for (const t of parseTags(raw)) if (!tags.includes(t)) tags.push(t);
+    pushTags(raw);
     text.value = '';
-    renderChips();
     renderSuggestions();
   }
   function removeTag(tag: string): void {
@@ -142,6 +155,7 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
   }
 
   function onKeydown(e: KeyboardEvent): void {
+    if (e.isComposing || composing) return; // IME 変換中は無視（確定は input/compositionend 側）。
     if (e.key === 'Enter' || e.key === ',') {
       // タグ確定（候補ハイライト中はそれ、無ければ入力中テキスト）。フォーム送信はさせない。
       if (open && active >= 0) {
@@ -180,10 +194,27 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
     }
   }
   function onInput(): void {
+    if (composing) return; // 変換確定まで待つ。
+    const v = text.value;
+    if (/[\s,]/.test(v)) {
+      // 区切り文字（半角/全角スペース・カンマ）が入ったら完成分を確定し、末尾の打ちかけだけ残す。
+      // keydown に依存しないため iOS/IME でも確実（変換確定後のスペースで分割される）。
+      const parts = v.split(/[\s,]+/);
+      const partial = parts.pop() ?? '';
+      pushTags(parts.join(' '));
+      text.value = partial;
+    }
     renderSuggestions();
   }
   function onFocus(): void {
     renderSuggestions();
+  }
+  function onCompositionStart(): void {
+    composing = true;
+  }
+  function onCompositionEnd(): void {
+    composing = false;
+    onInput(); // 変換確定後に区切りを再評価。
   }
   // blur では閉じない（iOS で候補タップ時に誤発火し候補が消えるため）。
   // 閉じるのは外側タップ（onDocPointerDown）／Esc／候補 0 件のみ。
@@ -205,6 +236,8 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
   text.addEventListener('keydown', onKeydown);
   text.addEventListener('input', onInput);
   text.addEventListener('focus', onFocus);
+  text.addEventListener('compositionstart', onCompositionStart);
+  text.addEventListener('compositionend', onCompositionEnd);
   root.addEventListener('click', onRootClick);
   document.addEventListener('pointerdown', onDocPointerDown, true);
   window.addEventListener('resize', reposition);
@@ -215,11 +248,18 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
 
   return {
     el: root,
-    getTags: () => [...tags],
+    getTags(): string[] {
+      // 未確定の入力テキストも取り込む（最後のタグを取りこぼさない）。
+      const all = [...tags];
+      for (const t of parseTags(text.value)) if (!all.includes(t)) all.push(t);
+      return all;
+    },
     destroy(): void {
       text.removeEventListener('keydown', onKeydown);
       text.removeEventListener('input', onInput);
       text.removeEventListener('focus', onFocus);
+      text.removeEventListener('compositionstart', onCompositionStart);
+      text.removeEventListener('compositionend', onCompositionEnd);
       root.removeEventListener('click', onRootClick);
       document.removeEventListener('pointerdown', onDocPointerDown, true);
       window.removeEventListener('resize', reposition);

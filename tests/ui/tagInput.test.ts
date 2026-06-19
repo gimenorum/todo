@@ -105,4 +105,47 @@ describe('createTagInput DOM（jsdom）', () => {
     text.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     expect(api.getTags()).toEqual(['home']);
   });
+
+  it('input で区切り（スペース）が入ると確定（iOS/IME 経路）', () => {
+    setup([], []);
+    text.value = 'abc ';
+    text.dispatchEvent(new Event('input'));
+    expect(chips()).toEqual(['abc']);
+    expect(text.value).toBe('');
+  });
+
+  it('input で複数トークンは完成分を確定し末尾の打ちかけを残す', () => {
+    setup([], []);
+    text.value = 'a b c';
+    text.dispatchEvent(new Event('input'));
+    expect(chips()).toEqual(['a', 'b']);
+    expect(text.value).toBe('c');
+  });
+
+  it('getTags は未確定の入力テキストも含む（最後のタグを落とさない）', () => {
+    setup(['home'], []);
+    text.value = 'pending';
+    expect(api.getTags()).toEqual(['home', 'pending']);
+  });
+
+  it('IME 変換中は分割せず、確定後のスペースで分割', () => {
+    setup([], []);
+    text.dispatchEvent(new Event('compositionstart'));
+    text.value = 'かい';
+    text.dispatchEvent(new Event('input')); // 変換中 → 確定しない
+    expect(chips()).toEqual([]);
+    text.dispatchEvent(new Event('compositionend')); // 確定
+    text.value = 'かい ';
+    text.dispatchEvent(new Event('input')); // 区切りで分割
+    expect(chips()).toEqual(['かい']);
+    expect(text.value).toBe('');
+  });
+
+  it('IME 変換中の space keydown では確定しない', () => {
+    setup([], []);
+    text.dispatchEvent(new Event('compositionstart'));
+    text.value = 'abc';
+    text.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', isComposing: true }));
+    expect(chips()).toEqual([]);
+  });
 });
