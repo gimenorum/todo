@@ -191,7 +191,12 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
     if (e.target === root) text.focus();
   }
   function onDocPointerDown(e: PointerEvent): void {
-    if (!root.contains(e.target as Node)) close();
+    // capture フェーズで判定（候補タップ時、li の pointerdown が renderSuggestions で
+    // 当該 li を DOM から外すため、bubble 後では root.contains が誤判定する）。
+    // composedPath は dispatch 時の経路なので、対象が外れても内側判定が安定する。
+    const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+    if (path.includes(root) || root.contains(e.target as Node)) return;
+    close();
   }
   const reposition = (): void => {
     if (open) position();
@@ -201,7 +206,7 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
   text.addEventListener('input', onInput);
   text.addEventListener('focus', onFocus);
   root.addEventListener('click', onRootClick);
-  document.addEventListener('pointerdown', onDocPointerDown);
+  document.addEventListener('pointerdown', onDocPointerDown, true);
   window.addEventListener('resize', reposition);
   window.addEventListener('scroll', reposition, true);
   window.visualViewport?.addEventListener('resize', reposition);
@@ -216,7 +221,7 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
       text.removeEventListener('input', onInput);
       text.removeEventListener('focus', onFocus);
       root.removeEventListener('click', onRootClick);
-      document.removeEventListener('pointerdown', onDocPointerDown);
+      document.removeEventListener('pointerdown', onDocPointerDown, true);
       window.removeEventListener('resize', reposition);
       window.removeEventListener('scroll', reposition, true);
       window.visualViewport?.removeEventListener('resize', reposition);
