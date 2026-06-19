@@ -68,16 +68,25 @@ describe('state/selectors', () => {
 });
 
 describe('state/selectors（Phase 2 同期系）', () => {
-  it('tasksBadge は競合のある todo 件数（フィールド数ではなく todo 単位）', () => {
+  it('tasksBadge は一覧と同じ perTodoStatus の conflict 件数（todo 単位）', () => {
     const s: State = {
       ...stateWith([]),
-      conflicts: [
-        { todoId: 'a', field: 'title', base: 0, left: 1, right: 2 },
-        { todoId: 'a', field: 'notes', base: 0, left: 1, right: 2 },
-        { todoId: 'b', field: 'done', base: false, left: true, right: false },
-      ],
+      perTodoStatus: { a: 'conflict', b: 'conflict', c: 'synced' },
     };
     expect(tasksBadge(s)).toBe(2);
+  });
+
+  it('tasksBadge は残留マーカー（perTodoStatus に無い conflicts）を数えない（一覧と一致 / Issue #52）', () => {
+    // 削除済み/未 materialize の todo にマーカーが残り conflicts には居るが、一覧（perTodoStatus）には出ない。
+    const s: State = {
+      ...stateWith([]),
+      perTodoStatus: { a: 'conflict' },
+      conflicts: [
+        { todoId: 'a', field: 'title', base: 0, left: 1, right: 2 },
+        { todoId: 'z', field: 'done', base: false, left: true, right: false }, // 残留マーカー
+      ],
+    };
+    expect(tasksBadge(s)).toBe(1);
   });
 
   it('settingsBadge は needs-reauth / error で true', () => {
