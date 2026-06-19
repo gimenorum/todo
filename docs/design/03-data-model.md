@@ -137,9 +137,18 @@ export interface DeviceSettings {
   autoSyncMode: 'manual' | 'interval';
   autoSyncIntervalMs: number;          // interval のときのみ有効（既定 300_000 = 5 分 / 18-open-questions #9）
   sidebarCollapsed: boolean;           // PC サイドバー折り畳み（UI 設定）
-  sortMode: 'auto' | 'manual';         // 一覧の並び（auto=自動整列 / manual=手動並べ替え。Phase 6・端末ごと＝同期しない）
+  sortBy: 'manual' | 'due' | 'priority' | 'title' | 'category'; // 並び替えキー（Phase 6・端末ごと＝同期しない）
+  filter: ListFilter;                  // 絞り込み（Phase 6・4 軸 AND・端末ごと＝同期しない）
   connectedProvider: 'none' | 'dropbox' | 'gdrive';
   language?: string;                   // 後で
+}
+
+// 一覧の絞り込み（Phase 6）。カテゴリは既存タグを流用。
+export interface ListFilter {
+  due: 'all' | 'overdue' | 'today' | 'week' | 'none'; // 期限バケツ
+  priority: 'all' | Priority;                          // 'all' か none/low/med/high
+  tag: string | null;                                  // null=すべて。指定タグを含むものだけ
+  title: string;                                       // タイトル部分一致（空=無効・大小無視）
 }
 ```
 

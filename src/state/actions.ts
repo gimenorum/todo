@@ -1,5 +1,13 @@
 import type { Store } from './store';
-import type { DeviceSettings, ExportRequest, FileDescriptor, ImportData, Uuid } from '../model/types';
+import type {
+  DeviceSettings,
+  ExportRequest,
+  FileDescriptor,
+  ImportData,
+  ListFilter,
+  SortBy,
+  Uuid,
+} from '../model/types';
 import type { TodoDraft, TodoPatch } from '../services/TodoService';
 import * as todoSvc from '../services/TodoService';
 import * as settingsSvc from '../services/SettingsService';
@@ -7,7 +15,8 @@ import * as ExportService from '../services/ExportService';
 import * as ImportService from '../services/ImportService';
 import * as issueReporter from '../services/issueReporter';
 import { keyBetween, keysAfter } from '../core';
-import { visibleTodos } from './selectors';
+import { comparatorFor } from './selectors';
+import { DEFAULT_FILTER } from '../model/constants';
 
 // UI が呼ぶアクション。services で永続してから setState する（ui→state→services→store / ch.01）。
 
@@ -34,8 +43,10 @@ export interface Actions {
   toggleDone(id: Uuid, done: boolean): Promise<void>;
   deleteTodo(id: Uuid): Promise<void>;
   changeSettings(patch: Partial<DeviceSettings>): Promise<void>;
-  // 手動並べ替え（Phase 6）。
-  setSortMode(mode: 'auto' | 'manual'): Promise<void>; // 並びモード切替（手動化時は order をバックフィル）
+  // 並び替え・絞り込み（Phase 6）。
+  setSortBy(sortBy: SortBy): Promise<void>; // 並び替えキー切替（手動化時は order をバックフィル）
+  setFilter(patch: Partial<ListFilter>): Promise<void>; // 絞り込みの一部更新
+  clearFilter(): Promise<void>; // 絞り込みを全解除
   reorderTodo(id: Uuid, beforeId: Uuid | null, afterId: Uuid | null): Promise<void>; // 前後の id から order を確定
   connectDropbox(): Promise<void>;
   connectGoogle(): Promise<void>;
@@ -96,22 +107,35 @@ export function createActions(store: Store, bridge: SyncBridge): Actions {
       bridge.applyIntervalChange();
     },
 
-    async setSortMode(mode) {
-      // 手動へ切替時、order 未設定が混在していれば現在の表示順を初期値として一括付与（並びが飛ばない）。
-      if (mode === 'manual') {
-        const visible = visibleTodos(store.getState());
-        if (visible.some((t) => t.order === '')) {
-          const keys = keysAfter(null, visible.length);
-          const updated = new Map<Uuid, (typeof visible)[number]>();
-          for (let i = 0; i < visible.length; i++) {
-            const next = await todoSvc.updateTodo(visible[i].id, { order: keys[i] });
+    async setSortBy(sortBy) {
+      // 手動へ切替時、order 未設定が混在していれば現在の並び（直前キー・フィルタ無視で全件）を
+      // 初期 order として一括付与（並びが飛ばない／以後 order 永続）。
+      if (sortBy === 'manual') {
+        const s = store.getState();
+        const all = s.todos.filter((t) => !t.deleted).sort(comparatorFor(s.settings.sortBy));
+        if (all.some((t) => t.order === '')) {
+          const keys = keysAfter(null, all.length);
+          const updated = new Map<Uuid, (typeof all)[number]>();
+          for (let i = 0; i < all.length; i++) {
+            const next = await todoSvc.updateTodo(all[i].id, { order: keys[i] });
             if (next) updated.set(next.id, next);
           }
-          store.setState((s) => ({ todos: s.todos.map((t) => updated.get(t.id) ?? t) }));
+          store.setState((st) => ({ todos: st.todos.map((t) => updated.get(t.id) ?? t) }));
           bridge.notifyEdited();
         }
       }
-      const next = await settingsSvc.updateSettings({ sortMode: mode });
+      const next = await settingsSvc.updateSettings({ sortBy });
+      store.setState({ settings: next });
+    },
+
+    async setFilter(patch) {
+      const filter: ListFilter = { ...store.getState().settings.filter, ...patch };
+      const next = await settingsSvc.updateSettings({ filter });
+      store.setState({ settings: next });
+    },
+
+    async clearFilter() {
+      const next = await settingsSvc.updateSettings({ filter: { ...DEFAULT_FILTER } });
       store.setState({ settings: next });
     },
 

@@ -102,11 +102,24 @@ export interface StoredToken {
 }
 
 // ---- 3.6 端末ごと設定（同期しない） ----
+
+// 一覧の並び替えキー（Phase 6）。manual=手動ドラッグ、それ以外は自動整列。どれも「完了は下」を保つ。
+export type SortBy = 'manual' | 'due' | 'priority' | 'title' | 'category';
+
+// 一覧の絞り込み（Phase 6・重ねがけ AND）。端末ごと＝同期しない。
+export interface ListFilter {
+  due: 'all' | 'overdue' | 'today' | 'week' | 'none'; // 期限バケツ
+  priority: 'all' | Priority; // 'all' か none/low/med/high
+  tag: string | null; // null = すべて。指定タグを含むものだけ（カテゴリ＝タグ流用）
+  title: string; // タイトル部分一致（空=無効・大小無視）
+}
+
 export interface DeviceSettings {
   autoSyncMode: 'manual' | 'interval';
   autoSyncIntervalMs: number; // interval のときのみ有効（既定 300_000 = 5 分）
   sidebarCollapsed: boolean; // PC サイドバー折り畳み（UI 設定）
-  sortMode: 'auto' | 'manual'; // タスク一覧の並び（auto=自動整列 / manual=手動並べ替え。同期しない）
+  sortBy: SortBy; // タスク一覧の並び替えキー（Phase 6・同期しない）
+  filter: ListFilter; // タスク一覧の絞り込み（Phase 6・同期しない）
   connectedProvider: 'none' | 'dropbox' | 'gdrive';
   language?: string; // 後で
 }

@@ -52,16 +52,16 @@ describe('actions 手動並べ替え（Phase 6）', () => {
     expect(store.getState().todos.every((t) => t.order === '')).toBe(true);
   });
 
-  it('setSortMode(manual) は現在の表示順を初期 order として一括付与し、以後は order で並ぶ', async () => {
+  it('setSortBy(manual) は現在の表示順を初期 order として一括付与し、以後は order で並ぶ', async () => {
     const { store, actions } = await freshActions();
     // 期日で自動整列される 3 件（early→late→noDue）。
     await actions.addTodo({ title: 'noDue' });
     await actions.addTodo({ title: 'late', dueDate: 2000 });
     await actions.addTodo({ title: 'early', dueDate: 1000 });
 
-    await actions.setSortMode('manual');
+    await actions.setSortBy('manual');
     const s = store.getState();
-    expect(s.settings.sortMode).toBe('manual');
+    expect(s.settings.sortBy).toBe('manual');
     // 全件に order が付与され、表示順は切替時点（自動順）のまま。
     expect(s.todos.every((t) => t.order !== '')).toBe(true);
     expect(visibleTodos(s).map((t) => t.title)).toEqual(['early', 'late', 'noDue']);
@@ -72,7 +72,7 @@ describe('actions 手動並べ替え（Phase 6）', () => {
     const id1 = await actions.addTodo({ title: 't1' });
     const id2 = await actions.addTodo({ title: 't2' });
     const id3 = await actions.addTodo({ title: 't3' });
-    await actions.setSortMode('manual');
+    await actions.setSortBy('manual');
     // 初期: t1, t2, t3。t3 を先頭（t1 の前）へ移動。
     await actions.reorderTodo(id3, null, id1);
     expect(visibleTodos(store.getState()).map((t) => t.id)).toEqual([id3, id1, id2]);
@@ -86,10 +86,42 @@ describe('actions 手動並べ替え（Phase 6）', () => {
     const { store, actions } = await freshActions();
     await actions.addTodo({ title: 't1' });
     await actions.addTodo({ title: 't2' });
-    await actions.setSortMode('manual');
+    await actions.setSortBy('manual');
     const newId = await actions.addTodo({ title: 't3' });
     const got = store.getState().todos.find((t) => t.id === newId);
     expect(got?.order).not.toBe('');
     expect(visibleTodos(store.getState()).map((t) => t.title)).toEqual(['t1', 't2', 't3']);
+  });
+});
+
+describe('actions 絞り込み（Phase 6）', () => {
+  it('setFilter は一部だけ更新し、一覧に反映される', async () => {
+    const { store, actions } = await freshActions();
+    await actions.addTodo({ title: 'a', priority: 'high' });
+    await actions.addTodo({ title: 'b', priority: 'low' });
+    await actions.setFilter({ priority: 'high' });
+    expect(store.getState().settings.filter.priority).toBe('high');
+    expect(visibleTodos(store.getState()).map((t) => t.title)).toEqual(['a']);
+  });
+
+  it('setFilter は他の軸を保持する', async () => {
+    const { store, actions } = await freshActions();
+    await actions.setFilter({ priority: 'high' });
+    await actions.setFilter({ title: '牛乳' });
+    const fl = store.getState().settings.filter;
+    expect(fl.priority).toBe('high');
+    expect(fl.title).toBe('牛乳');
+  });
+
+  it('clearFilter で全解除', async () => {
+    const { store, actions } = await freshActions();
+    await actions.setFilter({ priority: 'high', tag: 'x', due: 'today' });
+    await actions.clearFilter();
+    expect(store.getState().settings.filter).toEqual({
+      due: 'all',
+      priority: 'all',
+      tag: null,
+      title: '',
+    });
   });
 });

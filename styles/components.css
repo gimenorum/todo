@@ -92,13 +92,35 @@ input[type='date']::-webkit-date-and-time-value {
   white-space: nowrap;
 }
 
-/* 並びモード・トグル（自動 ⇄ 手動 / Phase 6） */
+/* 並び替え・絞り込み（Phase 6） */
 .list-toolbar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
 }
-.sort-toggle {
+.sort-field,
+.filter-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.field-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+.sort-select,
+.filter-category,
+.filter-priority,
+.filter-due {
+  padding: 6px 8px;
+}
+.filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 12px;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -107,9 +129,67 @@ input[type='date']::-webkit-date-and-time-value {
   font-size: 13px;
   font-weight: 500;
 }
-.sort-toggle[aria-pressed='true'] {
+.filter-toggle[aria-expanded='true'] {
   border-color: var(--primary);
   color: var(--primary);
+}
+.filter-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.filter-search {
+  width: 100%;
+}
+.filter-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.filter-clear {
+  margin-left: auto;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+.filter-active {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  font-size: 13px;
+}
+.filter-active-clear {
+  padding: 4px 10px;
+  border: 1px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  border-radius: var(--radius);
+  font-size: 13px;
 }
 
 /* 一覧 */

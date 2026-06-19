@@ -4,7 +4,7 @@
 import { merge3NoBase } from '../core';
 import { snapshotFromTodos } from './syncLocalState';
 import * as todoStore from '../store/todoStore';
-import type { DeviceSettings, ImportData, Priority, Todo } from '../model/types';
+import type { DeviceSettings, ImportData, ListFilter, Priority, SortBy, Todo } from '../model/types';
 
 const PRIORITIES: readonly Priority[] = ['none', 'low', 'med', 'high'];
 
@@ -78,13 +78,30 @@ export async function mergeTasks(imported: Todo[]): Promise<Todo[]> {
   return merged;
 }
 
+const SORT_BYS: readonly SortBy[] = ['manual', 'due', 'priority', 'title', 'category'];
+const DUE_FILTERS: readonly ListFilter['due'][] = ['all', 'overdue', 'today', 'week', 'none'];
+
+// 絞り込みの各サブ値を検証して安全な ListFilter に整える（不正は既定へ）。
+function sanitizeFilter(v: unknown): ListFilter {
+  const f = isObject(v) ? v : {};
+  const due = DUE_FILTERS.includes(f.due as ListFilter['due']) ? (f.due as ListFilter['due']) : 'all';
+  const priority =
+    f.priority === 'all' || PRIORITIES.includes(f.priority as Priority)
+      ? (f.priority as ListFilter['priority'])
+      : 'all';
+  const tag = typeof f.tag === 'string' ? f.tag : null;
+  const title = typeof f.title === 'string' ? f.title : '';
+  return { due, priority, tag, title };
+}
+
 // 設定インポートの適用値（connectedProvider は除外＝連携状態はトークンに紐づくため上書きしない）。
 export function sanitizeSettings(s: DeviceSettings): Partial<DeviceSettings> {
   const next: Partial<DeviceSettings> = {};
   if (s.autoSyncMode === 'manual' || s.autoSyncMode === 'interval') next.autoSyncMode = s.autoSyncMode;
   if (typeof s.autoSyncIntervalMs === 'number') next.autoSyncIntervalMs = s.autoSyncIntervalMs;
   if (typeof s.sidebarCollapsed === 'boolean') next.sidebarCollapsed = s.sidebarCollapsed;
-  if (s.sortMode === 'auto' || s.sortMode === 'manual') next.sortMode = s.sortMode;
+  if (SORT_BYS.includes(s.sortBy)) next.sortBy = s.sortBy;
+  if (s.filter !== undefined) next.filter = sanitizeFilter(s.filter);
   if (typeof s.language === 'string') next.language = s.language;
   return next;
 }
