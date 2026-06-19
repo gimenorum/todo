@@ -53,8 +53,17 @@ select {
   background-position: right 12px center;
   background-size: 12px;
 }
-/* 期日の値を左寄せして、他の入力欄（左寄せ）と見た目をそろえる（iOS Safari / Issue #48）。
-   期日・優先度の幅は共有ルールの width:100% に従い、タイトル等と同じフル幅にする。 */
+/* 期日・優先度は 1 行に横並び（2 カラム・半幅）でそろえる（Issue #48）。
+   各カラムは入力欄を width:100%（共有ルール）で満たす。 */
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+.field-row > .field {
+  flex: 1;
+  min-width: 0;
+}
+/* 期日の値を左寄せして他の左寄せ項目と見た目をそろえる（iOS Safari / Issue #48）。 */
 input[type='date']::-webkit-date-and-time-value {
   text-align: left;
   margin: 0;
