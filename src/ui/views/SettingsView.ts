@@ -1,6 +1,7 @@
-import type { DeviceSettings, State } from '../../model/types';
+import type { DeviceSettings, ExportRequest, ImportData, State } from '../../model/types';
 import type { UiContext, ViewController } from '../context';
 import { el, setTextIfChanged } from '../dom';
+import { saveFile } from '../download';
 
 // 連携済み保存先の表示名。
 function providerLabel(provider: DeviceSettings['connectedProvider']): string {
@@ -96,12 +97,106 @@ export function createSettingsView(ctx: UiContext): ViewController {
   sync.append(manualLabel, intervalLabel, intervalField, syncNowBtn);
   root.append(sync);
 
-  // --- データ（Phase 5） ---
+  // --- データ（エクスポート / インポート ／ Phase 5・ch.13） ---
   const data = el('section', { class: 'settings-section' });
   data.append(el('h2', { text: 'データ' }));
-  data.append(
-    el('p', { class: 'muted', text: 'タスク／設定のエクスポート・インポートは Phase 5 で提供します。' }),
+
+  // 結果/エラー表示（確認中も見えるよう section 直下に置く）。
+  const dataNote = el('p', { class: 'muted', attrs: { hidden: '' } });
+  const showDataError = (e: unknown): void => {
+    dataNote.textContent = e instanceof Error ? e.message : String(e);
+    dataNote.hidden = false;
+  };
+
+  // 通常操作（エクスポート/インポート）。確認表示中は隠す。
+  const dataControls = el('div', { class: 'data-controls' });
+
+  function exportButton(label: string, req: ExportRequest): HTMLButtonElement {
+    const b = el('button', { class: 'btn btn-secondary', text: label, attrs: { type: 'button' } });
+    b.addEventListener('click', () => {
+      dataNote.hidden = true;
+      void ctx.actions.exportData(req).then(saveFile).catch(showDataError);
+    });
+    return b;
+  }
+
+  dataControls.append(
+    el('p', { class: 'muted', text: 'エクスポート' }),
+    exportButton('タスクをバックアップ', { kind: 'tasks', format: 'json' }),
+    exportButton('タスク (Markdown)', { kind: 'tasks', format: 'md' }),
+    exportButton('タスク (CSV)', { kind: 'tasks', format: 'csv' }),
+    exportButton('設定をバックアップ', { kind: 'settings', format: 'json' }),
+    exportButton('全体をバックアップ（タスク＋設定）', { kind: 'all', format: 'json' }),
   );
+
+  // インポート: hidden file input をボタンから開く。
+  const importInput = el('input', {
+    class: 'f-import',
+    attrs: { type: 'file', accept: '.json,application/json', hidden: '' },
+  });
+  const importBtn = el('button', {
+    class: 'btn btn-secondary',
+    text: 'バックアップから読み込む',
+    attrs: { type: 'button' },
+  });
+  importBtn.addEventListener('click', () => importInput.click());
+  importInput.addEventListener('change', () => {
+    const file = importInput.files?.[0];
+    importInput.value = ''; // 同じファイルを連続選択しても change が発火するように
+    if (!file) return;
+    dataNote.hidden = true;
+    void file
+      .text()
+      .then((text) => showImportConfirm(ctx.actions.previewImport(text))) // parse は throw しうる
+      .catch(showDataError);
+  });
+  dataControls.append(
+    el('p', { class: 'muted', text: 'インポート' }),
+    importBtn,
+    importInput,
+    el('p', { class: 'muted', text: 'バックアップファイルを選んで取り込みます' }),
+  );
+
+  // 取り込み内容のインライン確認（dataControls と差し替え表示）。
+  const importConfirm = el('div', { class: 'data-confirm', attrs: { hidden: '' } });
+  function closeImportConfirm(): void {
+    importConfirm.hidden = true;
+    importConfirm.replaceChildren();
+    dataControls.hidden = false;
+  }
+  function showImportConfirm(d: ImportData): void {
+    const summary = el('ul', { class: 'muted' });
+    if (d.tasks) {
+      summary.append(
+        el('li', {
+          text: `タスク ${d.tasks.length} 件を取り込みます（同じタスクは新しい方を採用、別のタスクは両方残します）`,
+        }),
+      );
+    }
+    if (d.settings) summary.append(el('li', { text: 'この端末の設定を上書きします' }));
+
+    const cancel = el('button', { class: 'btn btn-secondary', text: 'キャンセル', attrs: { type: 'button' } });
+    const apply = el('button', { class: 'btn', text: '適用する', attrs: { type: 'button' } });
+    cancel.addEventListener('click', closeImportConfirm);
+    apply.addEventListener('click', () => {
+      apply.disabled = true;
+      dataNote.hidden = true;
+      void ctx.actions
+        .commitImport(d)
+        .then(closeImportConfirm)
+        .catch((e) => {
+          apply.disabled = false;
+          showDataError(e);
+        });
+    });
+    const actions = el('div', { class: 'form-actions' });
+    actions.append(cancel, apply);
+    importConfirm.replaceChildren(el('h3', { text: '取り込み内容を確認' }), summary, actions);
+    dataControls.hidden = true;
+    importConfirm.hidden = false;
+  }
+
+  data.append(dataControls, importConfirm, dataNote);
   root.append(data);
 
   // --- アプリ（インストール・バージョン） ---
