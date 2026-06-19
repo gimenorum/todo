@@ -47,19 +47,35 @@ textarea {
 select {
   appearance: none;
   -webkit-appearance: none;
-  min-width: 7em;
   padding-right: 36px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23888' stroke-width='1.5' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   background-size: 12px;
 }
-/* 期日・優先度は中身相当の幅に収め、横幅いっぱいに伸ばさない（Issue #48）。 */
-.f-due,
-.f-priority {
-  width: auto;
-  max-width: 100%;
-  align-self: flex-start;
+/* 期日・優先度は 1 行に横並び（2 カラム・半幅）でそろえる（Issue #48）。
+   各カラムは入力欄を width:100%（共有ルール）で満たす。 */
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+.field-row > .field {
+  flex: 1;
+  min-width: 0;
+}
+/* iOS Safari の日付入力はネイティブ固有幅を持ち width:100% を無視して列からはみ出す
+   （隣カラムと重なる）。appearance をリセットして枠（半幅カラム）に収める（Issue #48）。 */
+input[type='date'] {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0;
+}
+/* 期日の値を左寄せし、空でも 1 行分の高さを確保して他の入力欄と高さをそろえる
+   （appearance リセットで空時に枠がつぶれるのを防ぐ / iOS Safari / Issue #48）。 */
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+  min-height: 1.5em;
 }
 
 /* 追加フォーム */

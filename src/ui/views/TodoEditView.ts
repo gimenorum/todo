@@ -72,6 +72,10 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
   }
   prField.append(el('label', { text: '優先度' }), priority);
 
+  // 期日・優先度は 1 行に横並び（2 カラム）でそろえる（Issue #48）。
+  const dueprRow = el('div', { class: 'field-row' });
+  dueprRow.append(dueField, prField);
+
   const tagField = el('div', { class: 'field' });
   const tags = el('input', {
     class: 'f-tags',
@@ -93,7 +97,7 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
   });
   formActions.append(del, save);
 
-  form.append(doneField, titleField, dueField, prField, tagField, notesField, formActions);
+  form.append(doneField, titleField, dueprRow, tagField, notesField, formActions);
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     void ctx.actions
