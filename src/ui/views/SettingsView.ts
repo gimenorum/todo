@@ -157,6 +157,42 @@ export function createSettingsView(ctx: UiContext): ViewController {
     el('p', { class: 'muted', text: 'バックアップファイルを選んで取り込みます' }),
   );
 
+  // ローカルデータの削除系（Issue #38）。危険操作として btn-danger で区別。
+  function resetButton(
+    label: string,
+    desc: string,
+    confirm: { message: string; confirmLabel: string; run: () => Promise<void> },
+  ): void {
+    const b = el('button', { class: 'btn btn-danger', text: label, attrs: { type: 'button' } });
+    b.addEventListener('click', () => showResetConfirm(confirm));
+    dataControls.append(b, el('p', { class: 'muted', text: desc }));
+  }
+  dataControls.append(
+    el('h3', { text: 'ローカルデータ' }),
+    el('p', { class: 'muted', text: '表示がおかしいときや同期がうまくいかないときに試してください。' }),
+  );
+  resetButton('ローカルデータを削除', 'ローカルデータを削除します。クラウド上のデータは消えません。', {
+    message: 'ローカルデータを削除します。クラウド上のデータは消えません。',
+    confirmLabel: '削除する',
+    run: () => ctx.actions.deleteLocalData(),
+  });
+  resetButton('クラウドから復元', 'ローカルデータを削除し、クラウドから復元します。', {
+    message:
+      'ローカルデータを削除し、クラウドから復元します。クラウド側は変わりません。まだ送信していない変更は失われる場合があります。オンラインで実行してください。',
+    confirmLabel: '復元する',
+    run: () => ctx.actions.refetchFromCloud(),
+  });
+  resetButton(
+    '連携を解除してすべて削除',
+    'クラウド連携を解除し、ローカルデータと設定をすべて削除します。',
+    {
+      message:
+        'クラウド連携を解除し、ローカルデータと設定をすべて削除します。クラウド上のデータは消えません。',
+      confirmLabel: '削除する',
+      run: () => ctx.actions.factoryReset(),
+    },
+  );
+
   // 取り込み内容のインライン確認（dataControls と差し替え表示）。
   const importConfirm = el('div', { class: 'data-confirm', attrs: { hidden: '' } });
   function closeImportConfirm(): void {
@@ -196,7 +232,36 @@ export function createSettingsView(ctx: UiContext): ViewController {
     importConfirm.hidden = false;
   }
 
-  data.append(dataControls, importConfirm, dataNote);
+  // リセット系のインライン確認（dataControls と差し替え表示）。確定で run（成功時はページ再読込される）。
+  const resetConfirm = el('div', { class: 'data-confirm', attrs: { hidden: '' } });
+  function showResetConfirm(c: { message: string; confirmLabel: string; run: () => Promise<void> }): void {
+    const cancel = el('button', { class: 'btn btn-secondary', text: 'キャンセル', attrs: { type: 'button' } });
+    const go = el('button', { class: 'btn btn-danger', text: c.confirmLabel, attrs: { type: 'button' } });
+    cancel.addEventListener('click', () => {
+      resetConfirm.hidden = true;
+      resetConfirm.replaceChildren();
+      dataControls.hidden = false;
+    });
+    go.addEventListener('click', () => {
+      go.disabled = true;
+      dataNote.hidden = true;
+      void c.run().catch((e) => {
+        go.disabled = false;
+        showDataError(e);
+      });
+    });
+    const actions = el('div', { class: 'form-actions' });
+    actions.append(cancel, go);
+    resetConfirm.replaceChildren(
+      el('h3', { text: '確認' }),
+      el('p', { class: 'muted', text: c.message }),
+      actions,
+    );
+    dataControls.hidden = true;
+    resetConfirm.hidden = false;
+  }
+
+  data.append(dataControls, importConfirm, resetConfirm, dataNote);
   root.append(data);
 
   // --- アプリ（インストール・バージョン） ---
