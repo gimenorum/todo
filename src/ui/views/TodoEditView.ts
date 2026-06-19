@@ -1,9 +1,10 @@
 import type { Priority, State, Uuid } from '../../model/types';
 import type { UiContext, ViewController } from '../context';
 import { el, qs } from '../dom';
-import { findTodo, perTodoStatusOf, showsSyncUi } from '../../state/selectors';
+import { distinctTags, findTodo, perTodoStatusOf, showsSyncUi } from '../../state/selectors';
 import { PRIORITIES, PRIORITY_LABEL } from '../../model/constants';
 import { fromDateInputValue, parseTags, toDateInputValue } from '../format';
+import { attachTagSuggest } from '../tagSuggest';
 
 // 個別編集（全フィールド）。Phase 0 は単独編集のため、編集中の再描画はしない（入力保持）。
 export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
@@ -82,7 +83,11 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
     attrs: { type: 'text', placeholder: 'タグ（スペース区切り）' },
   });
   tags.value = current.tags.join(' ');
-  tagField.append(el('label', { text: 'タグ' }), tags);
+  // 候補サジェスト（既存タグから選択 / Issue #65）。input は relative ラッパ直下に置く。
+  const tagWrap = el('div', { class: 'tag-suggest' });
+  tagWrap.append(tags);
+  tagField.append(el('label', { text: 'タグ' }), tagWrap);
+  const suggest = attachTagSuggest(tags, () => distinctTags(ctx.store.getState().todos));
 
   const notesField = el('div', { class: 'field' });
   const notes = el('textarea', { class: 'f-notes', attrs: { rows: '4' } });
@@ -122,6 +127,9 @@ export function createTodoEditView(ctx: UiContext, id: Uuid): ViewController {
     update(state: State) {
       // フォームは再描画しない（編集中の入力を保持）が、競合バナーの表示/非表示のみ反映する。
       refreshConflict(state);
+    },
+    destroy() {
+      suggest.destroy(); // タグサジェストの window/document リスナを後始末。
     },
   };
 }

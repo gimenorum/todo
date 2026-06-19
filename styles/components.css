@@ -562,3 +562,38 @@ input[type='date']::-webkit-date-and-time-value {
   font-size: 14px;
   word-break: break-word;
 }
+
+/* タグ入力のオートコンプリート（Issue #65） */
+.tag-suggest {
+  position: relative;
+}
+.tag-suggest-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+}
+/* 下に余白が無いときは上に反転（自動フリップ）。 */
+.tag-suggest-list.is-above {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.tag-suggest-option {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  word-break: break-word;
+}
+.tag-suggest-option.is-active {
+  background: color-mix(in srgb, var(--primary) 14%, var(--surface));
+}
