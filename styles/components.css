@@ -47,21 +47,17 @@ textarea {
 select {
   appearance: none;
   -webkit-appearance: none;
-  min-width: 7em;
   padding-right: 36px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23888' stroke-width='1.5' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   background-size: 12px;
 }
-/* 期日・優先度は中身相当の幅に収め、横幅いっぱいに伸ばさない（Issue #48）。
-   期日は共有の `input[type='date'] { width:100% }`（詳細度 0,1,1）に勝つよう
-   `input[type='date'].f-due`（0,2,1）で上書きする。 */
-input[type='date'].f-due,
-.f-priority {
-  width: auto;
-  max-width: 100%;
-  align-self: flex-start;
+/* 期日の値を左寄せして、他の入力欄（左寄せ）と見た目をそろえる（iOS Safari / Issue #48）。
+   期日・優先度の幅は共有ルールの width:100% に従い、タイトル等と同じフル幅にする。 */
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
 }
 
 /* 追加フォーム */
