@@ -32,6 +32,7 @@
 input[type='text'],
 input[type='search'],
 input[type='date'],
+input[type='time'],
 select,
 textarea,
 .add-todo-input {
@@ -69,16 +70,18 @@ select {
   flex: 1;
   min-width: 0;
 }
-/* iOS Safari の日付入力はネイティブ固有幅を持ち width:100% を無視して列からはみ出す
-   （隣カラムと重なる）。appearance をリセットして枠（半幅カラム）に収める（Issue #48）。 */
-input[type='date'] {
+/* iOS Safari の日付/時刻入力はネイティブ固有幅を持ち width:100% を無視して列からはみ出す
+   （隣カラムと重なる）。appearance をリセットして枠（半幅カラム）に収める（Issue #48・#71）。 */
+input[type='date'],
+input[type='time'] {
   appearance: none;
   -webkit-appearance: none;
   min-width: 0;
 }
 /* 期日の値を左寄せし、空でも 1 行分の高さを確保して他の入力欄と高さをそろえる
-   （appearance リセットで空時に枠がつぶれるのを防ぐ / iOS Safari / Issue #48）。 */
-input[type='date']::-webkit-date-and-time-value {
+   （appearance リセットで空時に枠がつぶれるのを防ぐ / iOS Safari / Issue #48・#71）。 */
+input[type='date']::-webkit-date-and-time-value,
+input[type='time']::-webkit-date-and-time-value {
   text-align: left;
   margin: 0;
   min-height: 1.5em;
