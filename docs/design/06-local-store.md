@@ -18,6 +18,13 @@
 - DB 名・バージョンは `model/constants.ts`。スキーマ変更は `store/db.ts` の `upgrade` で管理。
 - **Phase 0** は `todos`/`settings`/`meta`(deviceId) のみで「ローカル専用アプリ」が成立。`objects`/`tokens` は同期導入（Phase 2）で追加。
 
+### オープンのハング耐性（Issue #63）
+
+ブート（`main.ts`）は画面マウントの手前で `getDb()`＝`openDB()` を待つため、**オープンがハングすると「読み込み中…」のまま固着**する（WebKit のナビゲーション直後の初回オープンが稀に応答しない／`DB_VERSION` 更新時に別タブ接続が upgrade を `blocked` する等）。`store/db.ts` は次で防ぐ:
+
+- `blocking`: 自分が他コンテキストの新しい upgrade を妨げている → 接続を閉じて相手を通す。`blocked`/`terminated` も処理。
+- `openWithTimeout`: 各オープン試行をタイムアウト（既定 4s × 3 回）で打ち切って再試行。遅延解決した接続は閉じてリークを防ぐ。全試行が時間切れなら **reject** し、ブートの catch が「再読込してください」へ落とす（無限スピナーにしない）。`getDb()` は失敗時に `dbPromise` を捨て、次回呼び出しで再試行できるようにする。
+
 ## 6.2 materialize とオブジェクトストアの関係
 
 ```mermaid
