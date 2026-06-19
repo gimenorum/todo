@@ -65,6 +65,19 @@ describe('createTagInput DOM（jsdom）', () => {
     expect(options()).toEqual(['home']); // 残り候補
   });
 
+  it('候補選択後に一瞬 blur してもフォーカスが残れば候補は開いたまま（残り候補を表示）', async () => {
+    setup([], ['work', 'home']);
+    text.focus();
+    text.dispatchEvent(new Event('focus'));
+    (root.querySelector('.tag-suggest-option') as HTMLElement).dispatchEvent(new Event('pointerdown'));
+    text.focus(); // 選択直後の再フォーカス（addTag 内と同等）
+    text.dispatchEvent(new Event('blur'));
+    await new Promise((r) => setTimeout(r, 5));
+    const list = root.querySelector('.tag-suggest-list') as HTMLElement;
+    expect(list.hidden).toBe(false);
+    expect(options()).toEqual(['home']);
+  });
+
   it('入力で候補を絞り込む', () => {
     setup([], ['work', 'workout', 'home']);
     text.value = 'ho';

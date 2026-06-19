@@ -186,7 +186,12 @@ export function createTagInput(initial: readonly string[], getCandidates: () => 
     renderSuggestions();
   }
   function onBlur(): void {
-    setTimeout(close, 0);
+    // 候補タップ時に一瞬 blur しても、フォーカスがコンポーネント内に戻っていれば閉じない
+    // （選択直後に残りの候補を出し続けるため。iOS で候補が消える問題の対策）。
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (a !== text && !root.contains(a)) close();
+    }, 0);
   }
   function onRootClick(e: MouseEvent): void {
     if (e.target === root) text.focus();
