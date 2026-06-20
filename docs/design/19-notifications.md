@@ -27,10 +27,22 @@
   composition root（`main.ts`）が、タスク変更（`store.subscribe`）と前面復帰（`visibilitychange→visible`）でも `check()` を呼ぶ。
 - `check()` の不変条件:
   - 権限が `granted` 以外、`done`/`deleted`、`dueDate==null`、`notifyBeforeMs==null` は対象外。
-  - `fireAt = dueDate − notifyBeforeMs`。**`fireAt ≤ now < dueDate`** かつ未通知のときだけ 1 回発火。
+  - `fireAt = dueDate − notifyBeforeMs`。**`fireAt ≤ now < dueDate`** かつ未通知のときだけ発火。
+    `fireAt` が既に過去でも期日前なら 1 回発火する（**即時キャッチアップ**＝確定仕様。起動が遅れても「間もなく期限」を知らせる）。
   - 期日経過後は発火しない（未起動の取りこぼしは許容）。
+- **表示成功を確認してから記録**: `notify` は表示できたら `true` を返す（`showNotification`）。
+  `true` のときだけ `notifiedFires` に記録する。`false`（表示失敗）なら記録せず、**次の周回で再試行**する
+  （「一度失敗すると恒久的に沈黙」する取りこぼしを防ぐ）。多重実行は内部フラグで畳む。
 - **通知済み管理**: meta ストア `notifiedFires: Record<Uuid, Millis>`（todoId → 通知した `fireAt`）。
   端末ローカルのみ（**同期しない**）。`fireAt` が変われば（期日/リード変更）再アーム＝再通知できる。
+
+## 19.2.1 通知の表示経路（`notify.ts`）
+- `showNotification` は **`new Notification()`（ページコンテキスト）を優先**し、表示できたら `true`。
+  - 理由: macOS（特に Safari の通常タブ）では SW の `registration.showNotification()` が**表示されない**ことがあるため、
+    確実に表示できるページ通知を先に使う。
+- `new Notification()` が **throw する環境（Android Chrome の "Illegal constructor"）でのみ** SW にフォールバック:
+  `navigator.serviceWorker.ready` を**タイムアウト（1.5s）でレース**して打ち切り（SW 未登録の dev で無限待ちしない）、
+  取得できれば `registration.showNotification()`。いずれも不可なら `false`。
 
 ## 19.3 権限の扱い（編集画面）
 

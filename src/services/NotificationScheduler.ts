@@ -7,7 +7,8 @@ import type { Permission } from './notify';
 
 export interface NotificationSchedulerDeps {
   getTodos: () => Todo[]; // 現在のタスク一覧（表示済み＝tombstone 除外）。
-  notify: (title: string, options?: NotificationOptions) => void; // 通知発火（権限判定は notify 側）。
+  // 通知発火。表示できたら true（権限判定・経路選択は notify 側）。false は失敗＝次回再試行する。
+  notify: (title: string, options?: NotificationOptions) => Promise<boolean>;
   getPermission: () => Permission;
   loadNotified: () => Promise<Record<Uuid, Millis>>; // 起動時に通知済みマップを読む。
   saveNotified: (map: Record<Uuid, Millis>) => Promise<void>; // 通知済みを永続（write-through）。
@@ -29,30 +30,43 @@ export function createNotificationScheduler(
   let timer: ReturnType<typeof setInterval> | null = null;
   let notified: Record<Uuid, Millis> = {};
   let loaded = false;
+  let running = false; // 多重実行防止（await 中の重複発火を避ける）。
 
+  // 公開 API は同期（fire-and-forget）。実体は runCheck で、多重実行は running で畳む。
   function check(): void {
-    if (!loaded) return; // 通知済みマップ未ロード中は二重通知を避けるため待つ。
+    if (!loaded || running) return; // 未ロード中・実行中は走らせない（二重通知を避ける）。
     if (deps.getPermission() !== 'granted') return;
+    void runCheck();
+  }
 
-    const t = now();
-    let changed = false;
-    for (const todo of deps.getTodos()) {
-      if (todo.done || todo.deleted) continue;
-      if (todo.dueDate === null || todo.notifyBeforeMs === null) continue;
+  async function runCheck(): Promise<void> {
+    running = true;
+    try {
+      const t = now();
+      let changed = false;
+      for (const todo of deps.getTodos()) {
+        if (todo.done || todo.deleted) continue;
+        if (todo.dueDate === null || todo.notifyBeforeMs === null) continue;
 
-      const fireAt = todo.dueDate - todo.notifyBeforeMs;
-      // リード期間内（fireAt 到達〜期日まで）で、この fireAt をまだ通知していなければ発火。
-      // 期日経過後は通知しない（取りこぼしは Web 制約として許容）。
-      if (t >= fireAt && t < todo.dueDate && notified[todo.id] !== fireAt) {
-        deps.notify('期日が近づいています', {
-          body: todo.title,
-          tag: `due-${todo.id}`,
-        });
-        notified[todo.id] = fireAt;
-        changed = true;
+        const fireAt = todo.dueDate - todo.notifyBeforeMs;
+        // リード期間内（fireAt 到達〜期日まで）で、この fireAt をまだ通知していなければ発火。
+        // 期日経過後は通知しない（取りこぼしは Web 制約として許容）。
+        if (t >= fireAt && t < todo.dueDate && notified[todo.id] !== fireAt) {
+          // 表示成功を確認してから記録する。失敗（false）なら未記録のまま次回再試行する。
+          const shown = await deps.notify('期日が近づいています', {
+            body: todo.title,
+            tag: `due-${todo.id}`,
+          });
+          if (shown) {
+            notified[todo.id] = fireAt;
+            changed = true;
+          }
+        }
       }
+      if (changed) await deps.saveNotified(notified);
+    } finally {
+      running = false;
     }
-    if (changed) void deps.saveNotified(notified);
   }
 
   return {

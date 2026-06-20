@@ -79,7 +79,7 @@ async function bootstrap(): Promise<void> {
   // 期日が近づいたら通知するスケジューラ（Issue #71 / ch.19）。サーバなし＝アプリ稼働中のみ。
   const notifications = createNotificationScheduler({
     getTodos: () => store.getState().todos,
-    notify: (title, options) => void showNotification(title, options),
+    notify: (title, options) => showNotification(title, options),
     getPermission,
     loadNotified: getNotifiedFires,
     saveNotified: setNotifiedFires,
