@@ -34,8 +34,11 @@ export function createNotificationScheduler(
 
   // 公開 API は同期（fire-and-forget）。実体は runCheck で、多重実行は running で畳む。
   function check(): void {
+    const perm = deps.getPermission();
+    // [調査用ログ / Issue #71] 後で除去する。
+    console.debug('[notif] check', { loaded, running, perm });
     if (!loaded || running) return; // 未ロード中・実行中は走らせない（二重通知を避ける）。
-    if (deps.getPermission() !== 'granted') return;
+    if (perm !== 'granted') return;
     void runCheck();
   }
 
@@ -49,14 +52,28 @@ export function createNotificationScheduler(
         if (todo.dueDate === null || todo.notifyBeforeMs === null) continue;
 
         const fireAt = todo.dueDate - todo.notifyBeforeMs;
+        const inWindow = t >= fireAt && t < todo.dueDate;
+        const willFire = inWindow && notified[todo.id] !== fireAt;
+        // [調査用ログ / Issue #71] 後で除去する。
+        console.debug('[notif] candidate', {
+          title: todo.title,
+          now: new Date(t).toLocaleTimeString(),
+          fireAt: new Date(fireAt).toLocaleTimeString(),
+          due: new Date(todo.dueDate).toLocaleTimeString(),
+          inWindow,
+          notified: notified[todo.id] != null ? new Date(notified[todo.id]).toLocaleTimeString() : null,
+          willFire,
+        });
         // リード期間内（fireAt 到達〜期日まで）で、この fireAt をまだ通知していなければ発火。
         // 期日経過後は通知しない（取りこぼしは Web 制約として許容）。
-        if (t >= fireAt && t < todo.dueDate && notified[todo.id] !== fireAt) {
+        if (willFire) {
           // 表示成功を確認してから記録する。失敗（false）なら未記録のまま次回再試行する。
           const shown = await deps.notify('期日が近づいています', {
             body: todo.title,
             tag: `due-${todo.id}`,
           });
+          // [調査用ログ / Issue #71] 後で除去する。
+          console.debug('[notif] fired', { title: todo.title, shown });
           if (shown) {
             notified[todo.id] = fireAt;
             changed = true;
